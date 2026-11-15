@@ -231,7 +231,7 @@
         <!-- Hero -->
         <div class="hero">
           <div class="hero-text">
-            <h1><%= t.teacher.dash.welcome %>, Prof. <%= user.full_name.split(' ')[0] %>!</h1>
+          <h1><%= t.teacher.dash.welcome %>, <%= user.full_name %>!</h1>
             <p><%= ungradedCount %> <%= t.teacher.dash.ungraded %> &bull; <%= pendingMessages %> <%= t.teacher.dash.unread %></p>
           </div>
           <i class="fa-solid fa-chalkboard-user hero-illustration"></i>
