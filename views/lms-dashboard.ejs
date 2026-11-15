@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Home | LuxMind LMS</title>
+  <title><%= t.portal_title %> | LuxMind</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
@@ -19,18 +19,22 @@
     .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 16px; background: linear-gradient(135deg, #527df2, #3157cb); }
-    .brand-name { color: var(--navy); font: 800 18px "Manrope", sans-serif; }
+    .brand-name { color: var(--navy); font: 800 18px "Manrope", sans-serif; letter-spacing: 1px; }
     
-    /* Right Nav (Notifications & User) */
+    /* Right Nav (Language, Notifications, User) */
     .nav-right { display: flex; align-items: center; gap: 20px; }
+    
+    .lang-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #f4f6fa; color: var(--navy); font-weight: 600; font-size: 13px; outline: none; cursor: pointer; }
+    
     .notif-wrapper { position: relative; }
     .notif-btn { background: #f4f6fa; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; color: var(--muted); font-size: 16px; transition: 0.2s; position: relative; }
     .notif-btn:hover { background: #e2e8f0; color: var(--navy); }
     .notif-badge { position: absolute; top: 0; right: 0; background: #d34d5b; color: white; font-size: 10px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #fff; }
     
-    .user-menu { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--navy); }
+    .user-menu { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--navy); border-left: 1px solid var(--line); padding-left: 20px; }
     .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #527df2, #3157cb); color: white; display: grid; place-items: center; font-weight: 800; }
-    .user-menu a { color: var(--blue); margin-left: 10px; font-size: 13px; }
+    .user-menu a { color: #d34d5b; margin-left: 10px; font-size: 13px; }
+    .user-menu a:hover { color: #b33e2e; }
 
     /* Layout */
     .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; display: grid; grid-template-columns: 280px 1fr; gap: 32px; }
@@ -44,13 +48,20 @@
 
     /* Main Content */
     .main-content { display: flex; flex-direction: column; gap: 24px; }
+    
+    /* Greeting Banner */
+    .greeting-banner { background: linear-gradient(135deg, var(--navy), #1c3155); color: white; padding: 32px; border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); }
+    .greeting-banner h1 { margin: 0 0 8px; font: 800 28px "Manrope", sans-serif; }
+    .greeting-banner p { margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; }
+    .greeting-icon { font-size: 48px; color: rgba(255,255,255,0.15); }
+
     .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; }
-    .block-header { padding: 20px 24px; border-bottom: 1px solid var(--line); font: 800 18px "Manrope", sans-serif; color: var(--navy); display: flex; justify-content: space-between; align-items: center; }
+    .block-header { padding: 20px 24px; border-bottom: 1px solid var(--line); font: 800 18px "Manrope", sans-serif; color: var(--navy); }
     .block-body { padding: 24px; }
     
     /* Premium Course Cards */
     .course-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .course-card { position: relative; border-radius: 16px; padding: 24px; text-decoration: none; display: flex; flex-direction: column; transition: 0.3s; overflow: hidden; background: linear-gradient(135deg, var(--navy), #1e3a66); color: white; }
+    .course-card { position: relative; border-radius: 16px; padding: 24px; text-decoration: none; display: flex; flex-direction: column; transition: 0.3s; overflow: hidden; background: linear-gradient(135deg, #2a3b5c, #111d35); color: white; }
     .course-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(11,31,58,0.3); }
     .course-card::before { content: ''; position: absolute; top: -50%; right: -20%; width: 150px; height: 150px; background: rgba(255,255,255,0.05); border-radius: 50%; }
     .course-code { display: inline-block; padding: 6px 12px; background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); border-radius: 8px; font-size: 12px; font-weight: 800; letter-spacing: 1px; margin-bottom: 16px; align-self: flex-start; position: relative; z-index: 1; }
@@ -68,20 +79,30 @@
     @media (max-width: 900px) {
       .container { grid-template-columns: 1fr; }
       .course-grid { grid-template-columns: 1fr; }
-      .topbar { padding: 16px 20px; }
-      .user-menu span { display: none; }
+      .topbar { padding: 16px 20px; flex-direction: column; align-items: flex-start; gap: 16px; }
+      .nav-right { width: 100%; justify-content: space-between; }
+      .user-menu { border-left: 0; padding-left: 0; }
+      .greeting-icon { display: none; }
     }
   </style>
 </head>
 <body>
-  <!-- Topbar with Notifications -->
+  <!-- Topbar -->
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark"><i class="fa-solid fa-book-open"></i></div>
-      <div class="brand-name">LuxMind LMS</div>
+      <div class="brand-name"><%= t.portal_title %></div>
     </div>
     
     <div class="nav-right">
+      <!-- Language Switcher -->
+      <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
+        <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
+        <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
+        <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 Kirundi</option>
+        <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
+      </select>
+
       <!-- Notification Bell -->
       <div class="notif-wrapper">
         <button class="notif-btn">
@@ -90,40 +111,53 @@
         </button>
       </div>
       
+      <!-- User Menu -->
       <div class="user-menu">
         <div class="user-avatar"><%= user.full_name.charAt(0) %></div>
-        <span><%= user.full_name %> (<%= user.role %>)</span>
-        <a href="/logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+        <span><%= user.full_name %></span>
+        <a href="/logout" title="<%= t.nav.logout %>"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
       </div>
     </div>
   </header>
 
   <div class="container">
+    <!-- Left Sidebar -->
     <aside class="side-nav">
       <div class="side-card">
         <h3>Navigation</h3>
         <ul class="nav-list">
-          <li><a href="/dashboard" class="active"><i class="fa-solid fa-house"></i> Home</a></li>
-          <li><a href="#"><i class="fa-solid fa-graduation-cap"></i> My Courses</a></li>
-          <li><a href="#"><i class="fa-solid fa-bullhorn"></i> Site announcements</a></li>
+          <li><a href="/dashboard" class="active"><i class="fa-solid fa-house"></i> <%= t.nav.home %></a></li>
+          <li><a href="#"><i class="fa-solid fa-graduation-cap"></i> <%= t.nav.courses %></a></li>
+          <li><a href="#"><i class="fa-solid fa-bullhorn"></i> <%= t.nav.announcements %></a></li>
         </ul>
       </div>
       <div class="side-card">
-        <h3>Online Users</h3>
+        <h3><%= t.dash.online %></h3>
         <p style="margin:0; font-size: 13px; color: var(--muted);">
           <i class="fa-solid fa-circle" style="color: #15966b; font-size: 10px;"></i> 
-          <strong><%= onlineUsers %></strong> online users
+          <strong><%= onlineUsers %></strong> online
         </p>
       </div>
     </aside>
 
+    <!-- Main Content -->
     <main class="main-content">
+      
+      <!-- DYNAMIC GREETING BANNER -->
+      <div class="greeting-banner">
+        <div>
+          <h1><%= greeting %>, <%= user.full_name.split(' ')[0] %>!</h1>
+          <p>Welcome to your learning portal. You have 1 course currently active.</p>
+        </div>
+        <i class="fa-solid fa-sun greeting-icon"></i>
+      </div>
+
       <!-- Site Announcements -->
       <div class="block">
-        <div class="block-header">Site announcements</div>
+        <div class="block-header"><%= t.dash.site_ann %></div>
         <div class="block-body">
           <% if (announcements.length === 0) { %>
-            <p style="color: var(--muted); margin: 0;">No announcements yet.</p>
+            <p style="color: var(--muted); margin: 0;"><%= t.dash.no_ann %></p>
           <% } else { %>
             <% announcements.forEach(a => { %>
               <div class="announcement">
@@ -139,12 +173,12 @@
         </div>
       </div>
 
-      <!-- Premium Course overview -->
+      <!-- Course overview -->
       <div class="block">
-        <div class="block-header">My Courses</div>
+        <div class="block-header"><%= t.dash.course_overview %></div>
         <div class="block-body">
           <% if (courses.length === 0) { %>
-            <p style="color: var(--muted); margin: 0;">You are not enrolled in any courses.</p>
+            <p style="color: var(--muted); margin: 0;"><%= t.dash.no_courses %></p>
           <% } else { %>
             <div class="course-grid">
               <% courses.forEach(c => { %>
