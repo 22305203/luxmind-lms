@@ -8,7 +8,11 @@ const app = express();
 
 app.set('trust proxy', 1);
 const pool = new Pool({
-  connectionString: 'postgresql://postgres.fclhdbppskmjlmbhtoug:LuxMindAdmin2026@aws-1-eu-central-1.pooler.supabase.com:6543/postgres',
+  user: 'postgres.fclhdbppskmjlmbhtoug',
+  password: 'LuxMindAdmin2026',
+  host: 'aws-1-eu-central-1.pooler.supabase.com',
+  port: 6543,
+  database: 'postgres',
   ssl: { rejectUnauthorized: false }
 });
 console.log("🔥 ATTEMPTING DB CONNECTION WITH:", process.env.DATABASE_URL || 'HARDCODED_URL_USED');
