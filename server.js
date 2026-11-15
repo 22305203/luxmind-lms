@@ -76,27 +76,55 @@ app.get('/dashboard', async (req, res) => {
 });
 
 // COURSE CONTENT PAGE
+// COURSE CONTENT PAGE (Multi-tab)
 app.get('/course/:id', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
+  const courseId = req.params.id;
+  const view = req.query.view || 'dashboard'; // dashboard, assignments, quizzes, grades, announcements
+  
   try {
     const enrollCheck = await pool.query(
-      `SELECT c.id, c.code, c.title, c.credits FROM courses c 
+      `SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c 
        JOIN enrollments e ON e.course_id = c.id 
+       LEFT JOIN course_sections s ON s.course_id = c.id
+       LEFT JOIN users u ON u.id = s.teacher_id
        WHERE c.id = $1 AND e.user_id = $2`,
-      [req.params.id, req.session.user.id]
+      [courseId, req.session.user.id]
     );
 
     if (enrollCheck.rows.length === 0) return res.send("Access Denied: You are not enrolled in this course.");
+    const course = enrollCheck.rows[0];
+
+    // Fetch data based on the view
+    let assignments = [], quizzes = [], grades = [], announcements = [];
     
-    const assignments = await pool.query(
-      `SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, 
-      [req.params.id]
-    );
+    if (view === 'dashboard' || view === 'assignments') {
+      const r = await pool.query(`SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
+      assignments = r.rows;
+    }
+    if (view === 'quizzes') {
+      const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
+      quizzes = r.rows;
+    }
+    if (view === 'grades') {
+      const r = await pool.query(`
+        SELECT a.title, s.grade, a.max_points 
+        FROM lms_submissions s
+        JOIN lms_assignments a ON a.id = s.assignment_id
+        WHERE s.student_id = $1 AND a.course_id = $2
+      `, [req.session.user.id, courseId]);
+      grades = r.rows;
+    }
+    if (view === 'announcements') {
+       // In a real app, you'd filter by course_id. For now, we mock it.
+       announcements = [{ title: 'Welcome to CS101', message: 'Please read the syllabus.', date: new Date() }];
+    }
 
     res.render('lms-course', { 
       user: req.session.user, 
-      course: enrollCheck.rows[0],
-      assignments: assignments.rows
+      course: course,
+      view: view,
+      assignments, quizzes, grades, announcements
     });
   } catch (err) {
     res.status(500).send("Course Error: " + err.message);
