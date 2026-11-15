@@ -95,8 +95,9 @@ app.post('/login', async (req, res) => {
 app.get('/dashboard', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   try {
+    // 1. Fetch courses
     const courseRes = await pool.query(`
-      SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name
+      SELECT c.id, c.code, c.title, u.full_name AS teacher_name
       FROM courses c
       JOIN enrollments e ON e.course_id = c.id
       LEFT JOIN course_sections s ON s.course_id = c.id
@@ -104,6 +105,7 @@ app.get('/dashboard', async (req, res) => {
       WHERE e.user_id = $1
     `, [req.session.user.id]);
 
+    // 2. Fetch site announcements
     const annRes = await pool.query(`
       SELECT a.*, u.full_name AS author_name 
       FROM lms_announcements a
@@ -111,10 +113,28 @@ app.get('/dashboard', async (req, res) => {
       ORDER BY a.created_at DESC
     `);
 
+    // 3. NEW: Fetch upcoming deadlines (Assignments from ALL enrolled courses)
+    const deadlineRes = await pool.query(`
+      SELECT a.id, a.title, a.due_date, c.code 
+      FROM lms_assignments a
+      JOIN courses c ON c.id = a.course_id
+      JOIN enrollments e ON e.course_id = c.id
+      WHERE e.user_id = $1 AND a.due_date > NOW()
+      ORDER BY a.due_date ASC
+      LIMIT 5
+    `, [req.session.user.id]);
+
+    // 4. NEW: Fetch notifications (Using announcements as a mock for now)
+    const notifRes = await pool.query(`
+      SELECT title, created_at FROM lms_announcements ORDER BY created_at DESC LIMIT 3
+    `);
+
     res.render('lms-dashboard', { 
       user: req.session.user, 
       courses: courseRes.rows,
       announcements: annRes.rows,
+      upcomingDeadlines: deadlineRes.rows, // <-- Pass deadlines
+      notifications: notifRes.rows,        // <-- Pass notifications
       onlineUsers: 3
     });
   } catch (err) {

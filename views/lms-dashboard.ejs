@@ -15,31 +15,37 @@
     body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font-family: "DM Sans", sans-serif; }
     a { color: inherit; text-decoration: none; }
 
-    /* Top Navbar */
+    /* Topbar & Notifications Dropdown */
     .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 16px; background: linear-gradient(135deg, #527df2, #3157cb); }
     .brand-name { color: var(--navy); font: 800 18px "Manrope", sans-serif; letter-spacing: 1px; }
     
-    /* Right Nav (Language, Notifications, User) */
     .nav-right { display: flex; align-items: center; gap: 20px; }
-    
     .lang-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #f4f6fa; color: var(--navy); font-weight: 600; font-size: 13px; outline: none; cursor: pointer; }
     
+    /* Notification Dropdown Logic */
     .notif-wrapper { position: relative; }
     .notif-btn { background: #f4f6fa; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; color: var(--muted); font-size: 16px; transition: 0.2s; position: relative; }
     .notif-btn:hover { background: #e2e8f0; color: var(--navy); }
     .notif-badge { position: absolute; top: 0; right: 0; background: #d34d5b; color: white; font-size: 10px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #fff; }
     
+    .notif-dropdown { position: absolute; top: 50px; right: 0; width: 300px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: none; flex-direction: column; z-index: 200; overflow: hidden; }
+    .notif-dropdown.active { display: flex; }
+    .notif-header { padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 800; color: var(--navy); background: #fafbfe; }
+    .notif-item { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13px; color: #4c5a70; transition: 0.2s; }
+    .notif-item:hover { background: #f4f6fa; }
+    .notif-item strong { display: block; color: var(--navy); margin-bottom: 4px; }
+
     .user-menu { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--navy); border-left: 1px solid var(--line); padding-left: 20px; }
     .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #527df2, #3157cb); color: white; display: grid; place-items: center; font-weight: 800; }
     .user-menu a { color: #d34d5b; margin-left: 10px; font-size: 13px; }
-    .user-menu a:hover { color: #b33e2e; }
 
-    /* Layout */
-    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; display: grid; grid-template-columns: 280px 1fr; gap: 32px; }
-    .side-nav { display: flex; flex-direction: column; gap: 24px; }
-    .side-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; border: 1px solid var(--line); }
+    /* 3-Column Layout */
+    .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; display: grid; grid-template-columns: 260px 1fr 300px; gap: 24px; }
+    
+    /* Sidebar */
+    .side-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; border: 1px solid var(--line); margin-bottom: 24px; }
     .side-card h3 { margin: 0 0 16px; font: 800 14px "Manrope", sans-serif; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
     .nav-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
     .nav-list a { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: #4c5a70; padding: 10px 12px; border-radius: 8px; transition: 0.2s; }
@@ -48,41 +54,38 @@
 
     /* Main Content */
     .main-content { display: flex; flex-direction: column; gap: 24px; }
-    
-    /* Greeting Banner */
     .greeting-banner { background: linear-gradient(135deg, var(--navy), #1c3155); color: white; padding: 32px; border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); }
     .greeting-banner h1 { margin: 0 0 8px; font: 800 28px "Manrope", sans-serif; }
     .greeting-banner p { margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; }
-    .greeting-icon { font-size: 48px; color: rgba(255,255,255,0.15); }
-
+    
     .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; }
     .block-header { padding: 20px 24px; border-bottom: 1px solid var(--line); font: 800 18px "Manrope", sans-serif; color: var(--navy); }
     .block-body { padding: 24px; }
     
-    /* Premium Course Cards */
-    .course-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .course-card { position: relative; border-radius: 16px; padding: 24px; text-decoration: none; display: flex; flex-direction: column; transition: 0.3s; overflow: hidden; background: linear-gradient(135deg, #2a3b5c, #111d35); color: white; }
+    .course-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .course-card { position: relative; border-radius: 12px; padding: 20px; text-decoration: none; display: flex; flex-direction: column; transition: 0.3s; overflow: hidden; background: linear-gradient(135deg, #2a3b5c, #111d35); color: white; }
     .course-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(11,31,58,0.3); }
-    .course-card::before { content: ''; position: absolute; top: -50%; right: -20%; width: 150px; height: 150px; background: rgba(255,255,255,0.05); border-radius: 50%; }
-    .course-code { display: inline-block; padding: 6px 12px; background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); border-radius: 8px; font-size: 12px; font-weight: 800; letter-spacing: 1px; margin-bottom: 16px; align-self: flex-start; position: relative; z-index: 1; }
-    .course-card h3 { margin: 0 0 8px; font: 800 20px "Manrope", sans-serif; position: relative; z-index: 1; }
-    .course-card p { margin: 0; font-size: 14px; color: rgba(255,255,255,0.7); position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+    .course-code { display: inline-block; padding: 4px 10px; background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); border-radius: 6px; font-size: 11px; font-weight: 800; letter-spacing: 1px; margin-bottom: 12px; align-self: flex-start; position: relative; z-index: 1; }
+    .course-card h3 { margin: 0 0 8px; font: 800 18px "Manrope", sans-serif; position: relative; z-index: 1; }
+    .course-card p { margin: 0; font-size: 13px; color: rgba(255,255,255,0.7); position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
 
-    /* Announcements */
-    .announcement { display: flex; gap: 16px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid #edf0f5; }
-    .announcement:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: 0; }
-    .ann-avatar { width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; display: grid; place-items: center; color: #64748b; font-size: 20px; flex-shrink: 0; }
-    .ann-content h4 { margin: 0 0 6px; font-size: 16px; color: #142039; }
-    .ann-content .meta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-    .ann-content p { margin: 0; font-size: 14px; line-height: 1.6; color: #4c5a70; }
+    /* Right Sidebar (Widgets) */
+    .right-widgets { display: flex; flex-direction: column; gap: 24px; }
+    .deadline-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .deadline-item:last-child { border-bottom: 0; }
+    .deadline-date { background: var(--blue-soft); color: var(--blue); font-weight: 800; font-size: 12px; padding: 6px 10px; border-radius: 6px; text-align: center; min-width: 55px; }
+    .deadline-info h4 { margin: 0 0 4px; font-size: 14px; color: var(--navy); }
+    .deadline-info p { margin: 0; font-size: 12px; color: var(--muted); }
 
+    @media (max-width: 1200px) {
+      .container { grid-template-columns: 260px 1fr; }
+      .right-widgets { display: none; }
+    }
     @media (max-width: 900px) {
       .container { grid-template-columns: 1fr; }
       .course-grid { grid-template-columns: 1fr; }
-      .topbar { padding: 16px 20px; flex-direction: column; align-items: flex-start; gap: 16px; }
+      .topbar { flex-direction: column; align-items: flex-start; gap: 16px; padding: 16px 20px; }
       .nav-right { width: 100%; justify-content: space-between; }
-      .user-menu { border-left: 0; padding-left: 0; }
-      .greeting-icon { display: none; }
     }
   </style>
 </head>
@@ -95,7 +98,6 @@
     </div>
     
     <div class="nav-right">
-      <!-- Language Switcher -->
       <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
         <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
         <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
@@ -103,19 +105,27 @@
         <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
       </select>
 
-      <!-- Notification Bell -->
+      <!-- FUNCTIONAL NOTIFICATION BELL -->
       <div class="notif-wrapper">
-        <button class="notif-btn">
+        <button class="notif-btn" onclick="document.getElementById('notifDropdown').classList.toggle('active')">
           <i class="fa-regular fa-bell"></i>
-          <span class="notif-badge">2</span>
+          <span class="notif-badge">3</span>
         </button>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-header">Notifications</div>
+          <% notifications.forEach(n => { %>
+            <a href="#" class="notif-item">
+              <strong><%= n.title %></strong>
+              <span><%= new Date(n.created_at).toLocaleDateString() %></span>
+            </a>
+          <% }); %>
+        </div>
       </div>
       
-      <!-- User Menu -->
       <div class="user-menu">
         <div class="user-avatar"><%= user.full_name.charAt(0) %></div>
         <span><%= user.full_name %></span>
-        <a href="/logout" title="<%= t.nav.logout %>"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+        <a href="/logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
       </div>
     </div>
   </header>
@@ -142,14 +152,13 @@
 
     <!-- Main Content -->
     <main class="main-content">
-      
       <!-- DYNAMIC GREETING BANNER -->
       <div class="greeting-banner">
         <div>
           <h1><%= greeting %>, <%= user.full_name.split(' ')[0] %>!</h1>
-          <p>Welcome to your learning portal. You have 1 course currently active.</p>
+          <p>Welcome to your learning portal. You have classes to catch up on.</p>
         </div>
-        <i class="fa-solid fa-sun greeting-icon"></i>
+        <i class="fa-solid fa-sun" style="font-size: 48px; color: rgba(255,255,255,0.15);"></i>
       </div>
 
       <!-- Site Announcements -->
@@ -160,12 +169,12 @@
             <p style="color: var(--muted); margin: 0;"><%= t.dash.no_ann %></p>
           <% } else { %>
             <% announcements.forEach(a => { %>
-              <div class="announcement">
-                <div class="ann-avatar"><i class="fa-regular fa-user"></i></div>
-                <div class="ann-content">
-                  <h4><%= a.title %></h4>
-                  <div class="meta">by <strong><%= a.author_name || 'System' %></strong> - <%= new Date(a.created_at).toLocaleString('en-GB') %></div>
-                  <p><%= a.message %></p>
+              <div style="display: flex; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 16px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: grid; place-items: center; color: #64748b; flex-shrink: 0;"><i class="fa-regular fa-user"></i></div>
+                <div>
+                  <h4 style="margin: 0 0 4px; color: var(--navy);"><%= a.title %></h4>
+                  <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">by <strong><%= a.author_name || 'System' %></strong></div>
+                  <p style="margin: 0; font-size: 14px; color: #4c5a70;"><%= a.message %></p>
                 </div>
               </div>
             <% }); %>
@@ -193,6 +202,52 @@
         </div>
       </div>
     </main>
+
+    <!-- RIGHT SIDEBAR (WIDGETS) -->
+    <aside class="right-widgets">
+      
+      <!-- Upcoming Deadlines Widget -->
+      <div class="block">
+        <div class="block-header" style="font-size: 16px;">Upcoming Deadlines</div>
+        <div class="block-body" style="padding: 16px 20px;">
+          <% if (upcomingDeadlines.length === 0) { %>
+            <p style="color: var(--muted); font-size: 13px; margin: 0;">No upcoming deadlines. You are all caught up! 🎉</p>
+          <% } else { %>
+            <% upcomingDeadlines.forEach(d => { %>
+              <div class="deadline-item">
+                <div class="deadline-date">
+                  <%= new Date(d.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) %>
+                </div>
+                <div class="deadline-info">
+                  <h4><%= d.title %></h4>
+                  <p><%= d.code %></p>
+                </div>
+              </div>
+            <% }); %>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Quick Links Widget -->
+      <div class="block">
+        <div class="block-header" style="font-size: 16px;">Quick Links</div>
+        <div class="block-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 10px;">
+          <a href="https://luxmind-sis-v2-2c2t.onrender.com/login" style="font-size: 13px; font-weight: 600; color: var(--blue);"><i class="fa-solid fa-arrow-up-right-from-square" style="margin-right:8px;"></i> Go to SIS Portal</a>
+          <a href="#" style="font-size: 13px; font-weight: 600; color: var(--blue);"><i class="fa-solid fa-book" style="margin-right:8px;"></i> Library Resources</a>
+          <a href="#" style="font-size: 13px; font-weight: 600; color: var(--blue);"><i class="fa-solid fa-headset" style="margin-right:8px;"></i> IT Support</a>
+        </div>
+      </div>
+
+    </aside>
   </div>
+
+  <script>
+    // Close notification dropdown when clicking outside
+    window.onclick = function(event) {
+      if (!event.target.closest('.notif-wrapper')) {
+        document.getElementById('notifDropdown').classList.remove('active');
+      }
+    }
+  </script>
 </body>
 </html>
