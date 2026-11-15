@@ -5,6 +5,8 @@ const { Pool } = require('pg');
 const session = require('express-session');
 
 const app = express();
+
+app.set('trust proxy', 1);
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -13,7 +15,16 @@ const pool = new Pool({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
-app.use(session({ secret: 'luxmind-lms-secret', resave: false, saveUninitialized: false }));
+app.use(session({
+  secret: 'luxmind-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: true,       // Required for HTTPS on Render
+    sameSite: 'none',   // Allows cross-site cookies if needed
+    httpOnly: true
+  }
+}));
 
 // ============================================
 // --- i18n: TRANSLATIONS & MIDDLEWARE ---
