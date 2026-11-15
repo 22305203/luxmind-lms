@@ -3,66 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= course.code %> | <%= t.portal_title %></title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <title><%= course.code %> | Teacher Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  
+  <script>
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  </script>
+
   <style>
     :root {
-      --navy: #111d35; --page: #f4f6fa; --surface: #fff; --text: #172238; --muted: #718096;
-      --line: #e6ebf2; --blue: #3867e8; --blue-soft: #edf2ff; --green: #15966b; --green-soft: #e9f8f1;
-      --shadow: 0 8px 28px rgba(24, 39, 75, .055); --radius: 16px;
+      --bg-body: #f4f6fa; --bg-surface: #ffffff; --sidebar-bg: #0f172a;
+      --text-main: #0f172a; --text-muted: #64748b; --border: #e2e8f0;
+      --primary: #4f46e5; --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.05); --radius: 16px;
     }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font-family: "DM Sans", sans-serif; }
-    a { color: inherit; text-decoration: none; }
+
+    [data-theme="dark"] {
+      --bg-body: #0f172a; --bg-surface: #1e293b; --text-main: #f8fafc;
+      --text-muted: #94a3b8; --border: #334155; --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.3s, border-color 0.3s; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); display: flex; min-height: 100vh; font-size: 14px; }
+    a { text-decoration: none; color: inherit; }
+    h1, h2, h3, h4 { font-family: 'Plus Jakarta Sans', sans-serif; }
 
     /* Top Navbar */
-    .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar { background: var(--bg-surface); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 16px; background: linear-gradient(135deg, #527df2, #3157cb); }
-    .brand-name { color: var(--navy); font: 800 18px "Manrope", sans-serif; }
-    .nav-right { display: flex; align-items: center; gap: 20px; }
-    .lang-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #f4f6fa; color: var(--navy); font-weight: 600; font-size: 13px; outline: none; cursor: pointer; }
-    .user-menu { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--navy); }
+    .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 16px; background: linear-gradient(135deg, #4f46e5, #0ea5e9); }
+    .brand-name { color: var(--text-main); font: 800 16px "Plus Jakarta Sans", sans-serif; }
+    .nav-right { display: flex; align-items: center; gap: 16px; }
+    .user-menu { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-main); }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; color: var(--primary); display: grid; place-items: center; font-weight: 800; font-size: 12px; }
 
     /* Layout */
-    .container { max-width: 1400px; margin: 0 auto; padding: 32px 20px; display: grid; grid-template-columns: 260px 1fr 280px; gap: 24px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px 20px; display: grid; grid-template-columns: 280px 1fr 300px; gap: 24px; }
     
-    /* Left Sidebar */
-    .course-nav { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; height: fit-content; }
-    .course-header-side { background: linear-gradient(135deg, var(--navy), #1c3155); padding: 24px; color: white; }
+    /* Left Sidebar (Course Navigation) */
+    .course-nav { background: var(--bg-surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); overflow: hidden; height: fit-content; }
+    .course-header-side { background: linear-gradient(135deg, #1e1b4b, #4f46e5); padding: 24px; color: white; }
     .course-code-side { display: inline-block; padding: 4px 8px; background: rgba(255,255,255,0.15); border-radius: 6px; font-size: 11px; font-weight: 800; margin-bottom: 12px; }
-    .course-header-side h2 { margin: 0; font: 800 20px "Manrope", sans-serif; }
+    .course-header-side h2 { margin: 0; font: 800 18px "Plus Jakarta Sans", sans-serif; }
     .nav-list { list-style: none; padding: 12px; margin: 0; display: flex; flex-direction: column; gap: 4px; }
-    .nav-list a { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: #4c5a70; padding: 12px 16px; border-radius: 8px; transition: 0.2s; }
-    .nav-list a:hover, .nav-list a.active { background: var(--blue-soft); color: var(--blue); }
-    .nav-list i { width: 20px; text-align: center; font-size: 16px; }
+    .nav-list a { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; color: var(--text-muted); padding: 10px 14px; border-radius: 8px; transition: 0.2s; }
+    .nav-list a:hover, .nav-list a.active { background: rgba(79,70,229,0.1); color: var(--primary); }
+    .nav-list i { width: 20px; text-align: center; font-size: 15px; }
+    .nav-divider { height: 1px; background: var(--border); margin: 8px 12px; }
 
     /* Main Content Area */
-    .main-content { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); padding: 32px; }
-    .section-title { font: 800 24px "Manrope", sans-serif; color: #142039; margin: 0 0 24px 0; border-bottom: 2px solid var(--line); padding-bottom: 16px; }
+    .main-content { background: var(--bg-surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); padding: 32px; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .section-title { font: 800 20px "Plus Jakarta Sans", sans-serif; color: var(--text-main); margin: 0; }
     
-    .item-card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; background: #fafbfe; }
-    .item-card:hover { border-color: var(--blue); background: #fff; box-shadow: 0 4px 12px rgba(56,103,232,0.05); }
-    .item-info h4 { margin: 0 0 6px; font-size: 16px; color: #142039; }
-    .item-meta { font-size: 13px; color: var(--muted); display: flex; gap: 16px; align-items: center; }
+    /* Buttons */
+    .btn { padding: 8px 16px; background: var(--primary); color: white; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+    .btn:hover { background: #4338ca; }
+    .btn-outline { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--bg-body); }
+    .btn-success { background: #10b981; }
+    .btn-success:hover { background: #059669; }
+
+    /* Item Cards (Assignments, Quizzes) */
+    .item-card { border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; background: var(--bg-body); }
+    .item-card:hover { border-color: var(--primary); background: var(--bg-surface); box-shadow: var(--shadow-sm); }
+    .item-info h4 { margin: 0 0 4px; font-size: 15px; color: var(--text-main); font-weight: 700; }
+    .item-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; align-items: center; }
+    .item-meta span { display: flex; align-items: center; gap: 6px; }
     
-    .btn { padding: 10px 18px; background: var(--blue); color: white; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
-    .btn:hover { background: #2a53c9; }
-    .btn-green { background: var(--green); }
-    .btn-green:hover { background: #0f7d57; }
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .data-table th { padding: 12px 16px; background: var(--bg-body); font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-main); }
+    .data-table tr:hover { background: rgba(79,70,229,0.02); }
 
     /* Right Sidebar */
     .right-sidebar { display: flex; flex-direction: column; gap: 24px; }
-    .widget { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); padding: 24px; }
-    .widget h3 { margin: 0 0 16px; font: 800 16px "Manrope", sans-serif; color: var(--navy); }
-    .widget p { font-size: 14px; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+    .widget { background: var(--bg-surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); padding: 24px; }
+    .widget h3 { margin: 0 0 16px; font: 800 15px "Plus Jakarta Sans", sans-serif; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+    
+    .quick-action { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; background: var(--bg-body); border: 1px solid var(--border); margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); transition: 0.2s; cursor: pointer; }
+    .quick-action:hover { border-color: var(--primary); background: var(--bg-surface); }
+    .quick-action i { color: var(--primary); font-size: 16px; }
 
     @media (max-width: 1100px) {
       .container { grid-template-columns: 260px 1fr; }
       .right-sidebar { display: none; }
     }
-    @media (max-width: 800px) {
+    @media (max-width: 768px) {
       .container { grid-template-columns: 1fr; }
       .course-nav { display: flex; overflow-x: auto; }
       .course-header-side { display: none; }
@@ -74,43 +107,50 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark"><i class="fa-solid fa-book-open"></i></div>
-      <div class="brand-name"><%= t.portal_title %></div>
+      <div class="brand-mark"><i class="fa-solid fa-chalkboard-user"></i></div>
+      <div class="brand-name">Teacher Portal</div>
     </div>
     <div class="nav-right">
-      <!-- LANGUAGE SWITCHER IS NOW HERE TOO -->
-      <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
-        <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
-        <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
-        <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 Kirundi</option>
-        <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
+      <select class="lang-select" onchange="window.location.href='/set-language/'+this.value" style="background:var(--bg-body); border:1px solid var(--border); padding:6px 12px; border-radius:20px; font-size:12px; outline:none; color:var(--text-main);">
+        <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 EN</option>
+        <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 FR</option>
+        <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 RN</option>
+        <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 SW</option>
       </select>
-
       <div class="user-menu">
+        <div class="avatar"><%= user.full_name.charAt(0) %></div>
         <span><%= user.full_name %></span>
-        <a href="/logout" style="color:#d34d5b; margin-left:10px;" title="<%= t.nav.logout %>"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+        <a href="/logout" style="color:#ef4444; margin-left:8px;"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
       </div>
     </div>
   </header>
 
   <div class="container">
-    <!-- Left Sidebar (Course Navigation) -->
+    <!-- Left Sidebar (Massive Teacher Menu) -->
     <aside class="course-nav">
       <div class="course-header-side">
         <span class="course-code-side"><%= course.code %></span>
         <h2><%= course.title %></h2>
       </div>
       <ul class="nav-list">
-        <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> <%= t.course.home %></a></li>
-        <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> <%= t.course.announcements %></a></li>
-        <li><a href="/course/<%= course.id %>?view=syllabus" class="<%= view === 'syllabus' ? 'active' : '' %>"><i class="fa-solid fa-file-contract"></i> <%= t.course.syllabus %></a></li>
-        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> <%= t.course.materials %></a></li>
-        <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> <%= t.course.assignments %></a></li>
-        <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> <%= t.course.quizzes %></a></li>
-        <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> <%= t.course.forums %></a></li>
-        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> <%= t.course.grades %></a></li>
-        <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-calendar-check"></i> <%= t.course.attendance %></a></li>
-        <li><a href="/course/<%= course.id %>?view=evaluation" class="<%= view === 'evaluation' ? 'active' : '' %>"><i class="fa-solid fa-star"></i> <%= t.course.evaluation %></a></li>
+        <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Course Home</a></li>
+        <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
+        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
+        
+        <div class="nav-divider"></div>
+        <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Assessments</div>
+        
+        <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
+        <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes & Exams</a></li>
+        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> Gradebook</a></li>
+        
+        <div class="nav-divider"></div>
+        <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Management</div>
+        
+        <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
+        <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>
+        <li><a href="/course/<%= course.id %>?view=analytics" class="<%= view === 'analytics' ? 'active' : '' %>"><i class="fa-solid fa-chart-line"></i> Analytics</a></li>
+        <li><a href="/course/<%= course.id %>?view=settings" class="<%= view === 'settings' ? 'active' : '' %>"><i class="fa-solid fa-gear"></i> Course Settings</a></li>
       </ul>
     </aside>
 
@@ -119,41 +159,77 @@
       
       <!-- DASHBOARD VIEW -->
       <% if (view === 'dashboard') { %>
-        <h1 class="section-title"><%= t.course.home %>: <%= course.title %></h1>
-        <p style="color: var(--muted); font-size: 15px; line-height: 1.6;">Select a topic from the left sidebar to view your assignments, notes, or grades.</p>
+        <div class="section-header">
+          <h1 class="section-title">Teacher Workspace: <%= course.title %></h1>
+        </div>
+        <p style="color: var(--text-muted); font-size:14px;">Welcome to your course command center. Select a tool from the sidebar to manage your class.</p>
       <% } %>
 
       <!-- ANNOUNCEMENTS VIEW -->
       <% if (view === 'announcements') { %>
-        <h1 class="section-title"><%= t.course.announcements %></h1>
+        <div class="section-header">
+          <h1 class="section-title">Course Announcements</h1>
+          <button class="btn"><i class="fa-solid fa-plus"></i> Post Announcement</button>
+        </div>
         <% if (announcements.length === 0) { %>
-          <p style="color: var(--muted);"><%= t.dash.no_ann %></p>
+           <p style="color:var(--text-muted);">No announcements posted yet.</p>
         <% } else { %>
           <% announcements.forEach(a => { %>
-            <div class="item-card" style="display: block;">
+            <div class="item-card" style="display:block;">
               <h4><%= a.title %></h4>
-              <p style="color: var(--muted); margin: 8px 0 0; font-size:14px; line-height:1.6;"><%= a.message %></p>
+              <p style="color: var(--text-muted); margin-top: 8px; font-size:13px;"><%= a.message %></p>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:12px;"><%= new Date(a.created_at).toLocaleString() %></div>
+            </div>
+          <% }); %>
+        <% } %>
+      <% } %>
+
+      <!-- MATERIALS VIEW -->
+      <% if (view === 'materials') { %>
+        <div class="section-header">
+          <h1 class="section-title">Course Materials</h1>
+          <button class="btn"><i class="fa-solid fa-upload"></i> Upload File</button>
+        </div>
+        <% if (materials.length === 0) { %>
+           <p style="color:var(--text-muted);">No materials uploaded yet.</p>
+        <% } else { %>
+          <% materials.forEach(m => { %>
+            <div class="item-card">
+              <div class="item-info">
+                <h4><%= m.title %></h4>
+                <div class="item-meta"><span><i class="fa-solid fa-calendar"></i> Week <%= m.week_number %></span></div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <a href="<%= m.file_url %>" target="_blank" class="btn btn-outline"><i class="fa-solid fa-eye"></i> View</a>
+                <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+              </div>
             </div>
           <% }); %>
         <% } %>
       <% } %>
 
       <!-- ASSIGNMENTS VIEW -->
-      <% if (view === 'assignments' || view === 'dashboard') { %>
-        <h1 class="section-title"><%= t.course.assignments %></h1>
+      <% if (view === 'assignments') { %>
+        <div class="section-header">
+          <h1 class="section-title">Assignments</h1>
+          <button class="btn"><i class="fa-solid fa-plus"></i> Create Assignment</button>
+        </div>
         <% if (assignments.length === 0) { %>
-          <p style="color: var(--muted);"><%= t.course.no_assign %></p>
+           <p style="color:var(--text-muted);">No assignments created yet.</p>
         <% } else { %>
           <% assignments.forEach(a => { %>
             <div class="item-card">
               <div class="item-info">
                 <h4><%= a.title %></h4>
                 <div class="item-meta">
-                  <span><i class="fa-regular fa-clock"></i> <%= t.course.due %>: <%= new Date(a.due_date).toLocaleDateString() %></span>
-                  <span><i class="fa-solid fa-star"></i> <%= a.max_points %> <%= t.course.points %></span>
+                  <span><i class="fa-regular fa-clock"></i> Due: <%= new Date(a.due_date).toLocaleDateString() %></span>
+                  <span><i class="fa-solid fa-star"></i> <%= a.max_points %> Points</span>
                 </div>
               </div>
-              <button class="btn"><i class="fa-solid fa-upload"></i> <%= t.course.submit %></button>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-outline"><i class="fa-solid fa-check-double"></i> Grade Submissions</button>
+                <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+              </div>
             </div>
           <% }); %>
         <% } %>
@@ -161,103 +237,126 @@
 
       <!-- QUIZZES VIEW -->
       <% if (view === 'quizzes') { %>
-        <h1 class="section-title"><%= t.course.quizzes %></h1>
+        <div class="section-header">
+          <h1 class="section-title">Quizzes & Exams</h1>
+          <button class="btn"><i class="fa-solid fa-plus"></i> Create Quiz</button>
+        </div>
         <% if (quizzes.length === 0) { %>
-          <p style="color: var(--muted);">No quizzes available right now.</p>
+           <p style="color:var(--text-muted);">No quizzes created yet.</p>
         <% } else { %>
           <% quizzes.forEach(q => { %>
             <div class="item-card">
               <div class="item-info">
                 <h4><%= q.title %></h4>
                 <div class="item-meta">
-                  <span><i class="fa-regular fa-clock"></i> <%= t.course.time_limit %>: <%= q.time_limit_minutes %> mins</span>
+                  <span><i class="fa-regular fa-clock"></i> <%= q.time_limit_minutes %> Mins</span>
+                  <span><i class="fa-solid fa-toggle-on"></i> Auto-Grading: Enabled</span>
                 </div>
               </div>
-              <button class="btn"><i class="fa-solid fa-play"></i> <%= t.course.start %></button>
-            </div>
-          <% }); %>
-        <% } %>
-      <% } %>
-
-      <!-- COURSE MATERIALS (NOTES) VIEW -->
-      <% if (view === 'materials') { %>
-        <h1 class="section-title"><%= t.course.materials %></h1>
-        <% if (materials.length === 0) { %>
-          <p style="color: var(--muted);"><%= t.course.no_mat %></p>
-        <% } else { %>
-          <% materials.forEach(m => { %>
-            <div class="item-card">
-              <div class="item-info">
-                <h4><%= m.title %></h4>
-                <div class="item-meta">
-                  <span><i class="fa-solid fa-calendar"></i> Week <%= m.week_number %></span>
-                </div>
-              </div>
-              <a href="<%= m.file_url %>" target="_blank" class="btn btn-green"><i class="fa-solid fa-download"></i> <%= t.course.view %></a>
-            </div>
-          <% }); %>
-        <% } %>
-      <% } %>
-
-      <!-- GRADES VIEW -->
-      <% if (view === 'grades') { %>
-        <h1 class="section-title"><%= t.course.grades %></h1>
-        <% if (grades.length === 0) { %>
-          <p style="color: var(--muted);">No grades published yet.</p>
-        <% } else { %>
-          <% grades.forEach(g => { %>
-            <div class="item-card">
-              <div class="item-info">
-                <h4><%= g.title %></h4>
-              </div>
-              <div style="font-weight: 800; color: var(--blue); font-size: 18px;">
-                <%= g.grade %> / <%= g.max_points %>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-outline"><i class="fa-solid fa-chart-bar"></i> Results</button>
+                <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
               </div>
             </div>
           <% }); %>
         <% } %>
       <% } %>
 
-      <!-- SYLLABUS VIEW -->
-      <% if (view === 'syllabus') { %>
-        <h1 class="section-title"><%= t.course.syllabus %></h1>
-        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
-          <i class="fa-solid fa-file-pdf" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
-          <h3 style="margin: 0 0 8px;">Syllabus PDF</h3>
-          <p style="color: var(--muted); margin-bottom: 20px;">The instructor has not uploaded the syllabus yet.</p>
+      <!-- STUDENTS ROSTER -->
+      <% if (view === 'students' && isTeacher) { %>
+        <div class="section-header">
+          <h1 class="section-title">Class Roster (<%= students.length %>)</h1>
+          <button class="btn btn-outline"><i class="fa-solid fa-file-export"></i> Export CSV</button>
+        </div>
+        <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+          <table class="data-table">
+            <thead>
+              <tr><th>Student Name</th><th>Admission No.</th><th>Email</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              <% students.forEach(s => { %>
+                <tr>
+                  <td style="font-weight:600;"><%= s.full_name %></td>
+                  <td style="font-family:monospace;"><%= s.admission_number %></td>
+                  <td><%= s.email %></td>
+                  <td><button class="btn btn-outline" style="padding:6px 10px; font-size:11px;">Message</button></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
         </div>
       <% } %>
 
-      <!-- OTHER PLACEHOLDERS -->
-      <% if (view === 'forums' || view === 'attendance' || view === 'evaluation') { %>
-        <h1 class="section-title"><%= t.course[view] %></h1>
-        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
-          <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
-          <h3 style="margin: 0 0 8px;">Coming Soon</h3>
-          <p style="color: var(--muted);">This feature will be available shortly.</p>
+      <!-- GRADEBOOK -->
+      <% if (view === 'grades') { %>
+        <div class="section-header">
+          <h1 class="section-title">Gradebook</h1>
+          <button class="btn btn-success"><i class="fa-solid fa-cloud-arrow-up"></i> Push to SIS Transcript</button>
+        </div>
+        <% if (grades.length === 0) { %>
+           <p style="color:var(--text-muted);">No grades recorded yet.</p>
+        <% } else { %>
+          <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <% if (isTeacher) { %><th>Student</th><% } %>
+                  <th>Assignment</th>
+                  <th>Score</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% grades.forEach(g => { %>
+                  <tr>
+                    <% if (isTeacher) { %><td style="font-weight:600;"><%= g.student_name %></td><% } %>
+                    <td><%= g.title %></td>
+                    <td style="font-weight:800; color:var(--primary);"><%= g.grade %> / <%= g.max_points %></td>
+                    <td><button class="btn btn-outline" style="padding:6px 10px; font-size:11px;">Edit Grade</button></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      <% } %>
+
+      <!-- PLACEHOLDER VIEWS -->
+      <% if (view === 'forums' || view === 'analytics' || view === 'settings') { %>
+        <div class="section-header">
+          <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %></h1>
+        </div>
+        <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px;">
+          <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--text-muted); margin-bottom: 16px;"></i>
+          <h3 style="color: var(--text-main); margin-bottom: 8px;">Under Construction</h3>
+          <p style="color: var(--text-muted); font-size:13px;">The <%= view %> module is coming in the next update.</p>
         </div>
       <% } %>
 
     </main>
 
-    <!-- Right Sidebar (Widgets) -->
+    <!-- Right Sidebar (Quick Actions) -->
     <aside class="right-sidebar">
       <div class="widget">
-        <h3><%= t.course.instructor %></h3>
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:40px; height:40px; border-radius:50%; background:var(--blue-soft); color:var(--blue); display:grid; place-items:center; font-weight:800;">
-            <%= (course.teacher_name || 'T').charAt(0) %>
-          </div>
-          <div>
-            <strong style="display:block; font-size:14px; color:var(--navy);"><%= course.teacher_name || 'TBA' %></strong>
-          </div>
+        <h3><i class="fa-solid fa-bolt"></i> Quick Actions</h3>
+        <div class="quick-action">
+          <i class="fa-solid fa-bullhorn"></i> Post Announcement
+        </div>
+        <div class="quick-action">
+          <i class="fa-solid fa-upload"></i> Upload Material
+        </div>
+        <div class="quick-action">
+          <i class="fa-solid fa-file-circle-plus"></i> Create Assignment
+        </div>
+        <div class="quick-action">
+          <i class="fa-solid fa-list-check"></i> Take Attendance
         </div>
       </div>
-      
+
       <div class="widget">
-        <h3><%= t.course.upcoming %></h3>
-        <p><i class="fa-solid fa-file-pen" style="color:var(--blue);"></i> Assignment 1 Due</p>
-        <p><i class="fa-solid fa-stopwatch" style="color:#d34d5b;"></i> Quiz 1 Opens</p>
+        <h3><i class="fa-solid fa-circle-info"></i> Course Info</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><strong>Instructor:</strong> <%= course.teacher_name || 'You' %></p>
+        <p style="font-size: 13px; color: var(--text-muted);"><strong>Credits:</strong> <%= course.credits %></p>
       </div>
     </aside>
   </div>

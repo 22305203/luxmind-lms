@@ -194,25 +194,40 @@ app.get('/dashboard', async (req, res) => {
 });
 
 // COURSE CONTENT PAGE (Multi-tab)
+// COURSE CONTENT PAGE (Multi-tab)
 app.get('/course/:id', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
   const view = req.query.view || 'dashboard';
+  const isTeacher = req.session.user.role === 'teacher' || req.session.user.role === 'advisor';
   
   try {
-    const enrollCheck = await pool.query(
-      `SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c 
-       JOIN enrollments e ON e.course_id = c.id 
-       LEFT JOIN course_sections s ON s.course_id = c.id
-       LEFT JOIN users u ON u.id = s.teacher_id
-       WHERE c.id = $1 AND e.user_id = $2`,
-      [courseId, req.session.user.id]
-    );
+    // 1. Verify access
+    let courseCheck;
+    if (!isTeacher) {
+      courseCheck = await pool.query(
+        `SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c 
+         JOIN enrollments e ON e.course_id = c.id 
+         LEFT JOIN course_sections s ON s.course_id = c.id
+         LEFT JOIN users u ON u.id = s.teacher_id
+         WHERE c.id = $1 AND e.user_id = $2`,
+        [courseId, req.session.user.id]
+      );
+    } else {
+      courseCheck = await pool.query(
+        `SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c 
+         LEFT JOIN course_sections s ON s.course_id = c.id
+         LEFT JOIN users u ON u.id = s.teacher_id
+         WHERE c.id = $1 AND s.teacher_id = $2`,
+        [courseId, req.session.user.id]
+      );
+    }
 
-    if (enrollCheck.rows.length === 0) return res.send("Access Denied: You are not enrolled in this course.");
-    const course = enrollCheck.rows[0];
+    if (courseCheck.rows.length === 0) return res.send("Access Denied: You do not have permission for this course.");
+    const course = courseCheck.rows[0];
 
-    let assignments = [], quizzes = [], grades = [], announcements = [], materials = [];
+    // 2. Fetch data based on the view
+    let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
     
     if (view === 'dashboard' || view === 'assignments') {
       const r = await pool.query(`SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
@@ -222,28 +237,51 @@ app.get('/course/:id', async (req, res) => {
       const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
       quizzes = r.rows;
     }
-    if (view === 'grades') {
-      const r = await pool.query(`
-        SELECT a.title, s.grade, a.max_points 
-        FROM lms_submissions s
-        JOIN lms_assignments a ON a.id = s.assignment_id
-        WHERE s.student_id = $1 AND a.course_id = $2
-      `, [req.session.user.id, courseId]);
-      grades = r.rows;
-    }
     if (view === 'announcements') {
-       announcements = [{ title: 'Welcome to CS101', message: 'Please read the syllabus.', date: new Date() }];
+       const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]);
+       announcements = r.rows;
     }
-    if (view === 'materials' || view === 'dashboard') {
+    if (view === 'materials') {
       const m = await pool.query(`SELECT * FROM lms_materials WHERE section_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]);
       materials = m.rows;
+    }
+    if (view === 'students' && isTeacher) {
+      const st = await pool.query(`
+        SELECT u.id, u.full_name, sp.admission_number, u.email
+        FROM enrollments e 
+        JOIN users u ON u.id = e.user_id 
+        LEFT JOIN student_profiles sp ON sp.user_id = u.id
+        WHERE e.course_id = $1
+      `, [courseId]);
+      students = st.rows;
+    }
+    if (view === 'grades') {
+      if (isTeacher) {
+        const r = await pool.query(`
+          SELECT u.full_name as student_name, a.title, s.grade, a.max_points 
+          FROM lms_submissions s
+          JOIN lms_assignments a ON a.id = s.assignment_id
+          JOIN users u ON u.id = s.student_id
+          WHERE a.course_id = $1
+        `, [courseId]);
+        grades = r.rows;
+      } else {
+        const r = await pool.query(`
+          SELECT a.title, s.grade, a.max_points 
+          FROM lms_submissions s
+          JOIN lms_assignments a ON a.id = s.assignment_id
+          WHERE s.student_id = $1 AND a.course_id = $2
+        `, [req.session.user.id, courseId]);
+        grades = r.rows;
+      }
     }
 
     res.render('lms-course', { 
       user: req.session.user, 
+      isTeacher,
       course: course,
       view: view,
-      assignments, quizzes, grades, announcements, materials
+      assignments, quizzes, grades, announcements, materials, students
     });
   } catch (err) {
     res.status(500).send("Course Error: " + err.message);
