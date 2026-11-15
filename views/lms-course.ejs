@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= course.code %> | LuxMind LMS</title>
+  <title><%= course.code %> | <%= t.portal_title %></title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
@@ -22,12 +22,13 @@
     .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 16px; background: linear-gradient(135deg, #527df2, #3157cb); }
     .brand-name { color: var(--navy); font: 800 18px "Manrope", sans-serif; }
     .nav-right { display: flex; align-items: center; gap: 20px; }
+    .lang-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #f4f6fa; color: var(--navy); font-weight: 600; font-size: 13px; outline: none; cursor: pointer; }
     .user-menu { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--navy); }
 
     /* Layout */
     .container { max-width: 1400px; margin: 0 auto; padding: 32px 20px; display: grid; grid-template-columns: 260px 1fr 280px; gap: 24px; }
     
-    /* Left Sidebar (Course Specific) */
+    /* Left Sidebar */
     .course-nav { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; height: fit-content; }
     .course-header-side { background: linear-gradient(135deg, var(--navy), #1c3155); padding: 24px; color: white; }
     .course-code-side { display: inline-block; padding: 4px 8px; background: rgba(255,255,255,0.15); border-radius: 6px; font-size: 11px; font-weight: 800; margin-bottom: 12px; }
@@ -41,19 +42,17 @@
     .main-content { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); padding: 32px; }
     .section-title { font: 800 24px "Manrope", sans-serif; color: #142039; margin: 0 0 24px 0; border-bottom: 2px solid var(--line); padding-bottom: 16px; }
     
-    /* Item Cards (Assignments, Quizzes, Materials) */
     .item-card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; background: #fafbfe; }
     .item-card:hover { border-color: var(--blue); background: #fff; box-shadow: 0 4px 12px rgba(56,103,232,0.05); }
     .item-info h4 { margin: 0 0 6px; font-size: 16px; color: #142039; }
     .item-meta { font-size: 13px; color: var(--muted); display: flex; gap: 16px; align-items: center; }
     
-    /* Buttons */
     .btn { padding: 10px 18px; background: var(--blue); color: white; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
     .btn:hover { background: #2a53c9; }
     .btn-green { background: var(--green); }
     .btn-green:hover { background: #0f7d57; }
 
-    /* Right Sidebar (Widgets) */
+    /* Right Sidebar */
     .right-sidebar { display: flex; flex-direction: column; gap: 24px; }
     .widget { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); padding: 24px; }
     .widget h3 { margin: 0 0 16px; font: 800 16px "Manrope", sans-serif; color: var(--navy); }
@@ -76,12 +75,20 @@
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark"><i class="fa-solid fa-book-open"></i></div>
-      <div class="brand-name">LuxMind LMS</div>
+      <div class="brand-name"><%= t.portal_title %></div>
     </div>
     <div class="nav-right">
+      <!-- LANGUAGE SWITCHER IS NOW HERE TOO -->
+      <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
+        <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
+        <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
+        <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 Kirundi</option>
+        <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
+      </select>
+
       <div class="user-menu">
         <span><%= user.full_name %></span>
-        <a href="/logout" style="color:var(--blue); margin-left:10px;"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+        <a href="/logout" style="color:#d34d5b; margin-left:10px;" title="<%= t.nav.logout %>"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
       </div>
     </div>
   </header>
@@ -93,45 +100,34 @@
         <span class="course-code-side"><%= course.code %></span>
         <h2><%= course.title %></h2>
       </div>
-           <ul class="nav-list">
-        <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Course Home</a></li>
-        <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
-        
-        <!-- NEW: Syllabus -->
-        <li><a href="/course/<%= course.id %>?view=syllabus" class="<%= view === 'syllabus' ? 'active' : '' %>"><i class="fa-solid fa-file-contract"></i> Syllabus</a></li>
-        
-        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
-        
-        <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
-        <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes</a></li>
-        
-        <!-- NEW: Forums -->
-        <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>
-        
-        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> My Grades</a></li>
-        
-        <!-- NEW: Attendance -->
-        <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-calendar-check"></i> My Attendance</a></li>
-        
-        <!-- NEW: Evaluations -->
-        <li><a href="/course/<%= course.id %>?view=evaluation" class="<%= view === 'evaluation' ? 'active' : '' %>"><i class="fa-solid fa-star"></i> Course Evaluation</a></li>
+      <ul class="nav-list">
+        <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> <%= t.course.home %></a></li>
+        <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> <%= t.course.announcements %></a></li>
+        <li><a href="/course/<%= course.id %>?view=syllabus" class="<%= view === 'syllabus' ? 'active' : '' %>"><i class="fa-solid fa-file-contract"></i> <%= t.course.syllabus %></a></li>
+        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> <%= t.course.materials %></a></li>
+        <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> <%= t.course.assignments %></a></li>
+        <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> <%= t.course.quizzes %></a></li>
+        <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> <%= t.course.forums %></a></li>
+        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> <%= t.course.grades %></a></li>
+        <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-calendar-check"></i> <%= t.course.attendance %></a></li>
+        <li><a href="/course/<%= course.id %>?view=evaluation" class="<%= view === 'evaluation' ? 'active' : '' %>"><i class="fa-solid fa-star"></i> <%= t.course.evaluation %></a></li>
       </ul>
     </aside>
 
-    <!-- Middle Content Area (Dynamic based on view) -->
+    <!-- Middle Content Area -->
     <main class="main-content">
       
       <!-- DASHBOARD VIEW -->
       <% if (view === 'dashboard') { %>
-        <h1 class="section-title">Welcome to <%= course.title %></h1>
+        <h1 class="section-title"><%= t.course.home %>: <%= course.title %></h1>
         <p style="color: var(--muted); font-size: 15px; line-height: 1.6;">Select a topic from the left sidebar to view your assignments, notes, or grades.</p>
       <% } %>
 
       <!-- ANNOUNCEMENTS VIEW -->
       <% if (view === 'announcements') { %>
-        <h1 class="section-title">Course Announcements</h1>
+        <h1 class="section-title"><%= t.course.announcements %></h1>
         <% if (announcements.length === 0) { %>
-          <p style="color: var(--muted);">No announcements yet.</p>
+          <p style="color: var(--muted);"><%= t.dash.no_ann %></p>
         <% } else { %>
           <% announcements.forEach(a => { %>
             <div class="item-card" style="display: block;">
@@ -144,20 +140,20 @@
 
       <!-- ASSIGNMENTS VIEW -->
       <% if (view === 'assignments' || view === 'dashboard') { %>
-        <h1 class="section-title">Assignments</h1>
+        <h1 class="section-title"><%= t.course.assignments %></h1>
         <% if (assignments.length === 0) { %>
-          <p style="color: var(--muted);">No assignments yet.</p>
+          <p style="color: var(--muted);"><%= t.course.no_assign %></p>
         <% } else { %>
           <% assignments.forEach(a => { %>
             <div class="item-card">
               <div class="item-info">
                 <h4><%= a.title %></h4>
                 <div class="item-meta">
-                  <span><i class="fa-regular fa-clock"></i> Due: <%= new Date(a.due_date).toLocaleDateString() %></span>
-                  <span><i class="fa-solid fa-star"></i> <%= a.max_points %> Points</span>
+                  <span><i class="fa-regular fa-clock"></i> <%= t.course.due %>: <%= new Date(a.due_date).toLocaleDateString() %></span>
+                  <span><i class="fa-solid fa-star"></i> <%= a.max_points %> <%= t.course.points %></span>
                 </div>
               </div>
-              <button class="btn"><i class="fa-solid fa-upload"></i> Submit Work</button>
+              <button class="btn"><i class="fa-solid fa-upload"></i> <%= t.course.submit %></button>
             </div>
           <% }); %>
         <% } %>
@@ -165,7 +161,7 @@
 
       <!-- QUIZZES VIEW -->
       <% if (view === 'quizzes') { %>
-        <h1 class="section-title">Quizzes</h1>
+        <h1 class="section-title"><%= t.course.quizzes %></h1>
         <% if (quizzes.length === 0) { %>
           <p style="color: var(--muted);">No quizzes available right now.</p>
         <% } else { %>
@@ -174,10 +170,10 @@
               <div class="item-info">
                 <h4><%= q.title %></h4>
                 <div class="item-meta">
-                  <span><i class="fa-regular fa-clock"></i> Time Limit: <%= q.time_limit_minutes %> mins</span>
+                  <span><i class="fa-regular fa-clock"></i> <%= t.course.time_limit %>: <%= q.time_limit_minutes %> mins</span>
                 </div>
               </div>
-              <button class="btn"><i class="fa-solid fa-play"></i> Start Quiz</button>
+              <button class="btn"><i class="fa-solid fa-play"></i> <%= t.course.start %></button>
             </div>
           <% }); %>
         <% } %>
@@ -185,9 +181,9 @@
 
       <!-- COURSE MATERIALS (NOTES) VIEW -->
       <% if (view === 'materials') { %>
-        <h1 class="section-title">Course Materials & Notes</h1>
+        <h1 class="section-title"><%= t.course.materials %></h1>
         <% if (materials.length === 0) { %>
-          <p style="color: var(--muted);">The teacher has not uploaded any notes or files yet.</p>
+          <p style="color: var(--muted);"><%= t.course.no_mat %></p>
         <% } else { %>
           <% materials.forEach(m => { %>
             <div class="item-card">
@@ -197,7 +193,7 @@
                   <span><i class="fa-solid fa-calendar"></i> Week <%= m.week_number %></span>
                 </div>
               </div>
-              <a href="<%= m.file_url %>" target="_blank" class="btn btn-green"><i class="fa-solid fa-download"></i> View / Download</a>
+              <a href="<%= m.file_url %>" target="_blank" class="btn btn-green"><i class="fa-solid fa-download"></i> <%= t.course.view %></a>
             </div>
           <% }); %>
         <% } %>
@@ -205,7 +201,7 @@
 
       <!-- GRADES VIEW -->
       <% if (view === 'grades') { %>
-        <h1 class="section-title">My Grades</h1>
+        <h1 class="section-title"><%= t.course.grades %></h1>
         <% if (grades.length === 0) { %>
           <p style="color: var(--muted);">No grades published yet.</p>
         <% } else { %>
@@ -222,11 +218,9 @@
         <% } %>
       <% } %>
 
-
-
       <!-- SYLLABUS VIEW -->
       <% if (view === 'syllabus') { %>
-        <h1 class="section-title">Course Syllabus</h1>
+        <h1 class="section-title"><%= t.course.syllabus %></h1>
         <div class="item-card" style="display:block; padding: 40px; text-align: center;">
           <i class="fa-solid fa-file-pdf" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
           <h3 style="margin: 0 0 8px;">Syllabus PDF</h3>
@@ -234,56 +228,34 @@
         </div>
       <% } %>
 
-      <!-- FORUMS VIEW -->
-      <% if (view === 'forums') { %>
-        <h1 class="section-title">Discussion Forums</h1>
+      <!-- OTHER PLACEHOLDERS -->
+      <% if (view === 'forums' || view === 'attendance' || view === 'evaluation') { %>
+        <h1 class="section-title"><%= t.course[view] %></h1>
         <div class="item-card" style="display:block; padding: 40px; text-align: center;">
-          <i class="fa-solid fa-comments" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
-          <h3 style="margin: 0 0 8px;">Course Q&A</h3>
-          <p style="color: var(--muted);">Ask questions and discuss course topics with your classmates here.</p>
+          <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0 0 8px;">Coming Soon</h3>
+          <p style="color: var(--muted);">This feature will be available shortly.</p>
         </div>
       <% } %>
-
-      <!-- ATTENDANCE VIEW -->
-      <% if (view === 'attendance') { %>
-        <h1 class="section-title">My Attendance</h1>
-        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
-          <i class="fa-solid fa-calendar-check" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
-          <h3 style="margin: 0 0 8px;">Attendance Record</h3>
-          <p style="color: var(--muted);">Your attendance for this course will be linked from the SIS here.</p>
-        </div>
-      <% } %>
-
-      <!-- EVALUATION VIEW -->
-      <% if (view === 'evaluation') { %>
-        <h1 class="section-title">Course Evaluation</h1>
-        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
-          <i class="fa-solid fa-star" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
-          <h3 style="margin: 0 0 8px;">Rate this Course</h3>
-          <p style="color: var(--muted);">The evaluation form will open at the end of the semester.</p>
-        </div>
-      <% } %>
-
 
     </main>
 
     <!-- Right Sidebar (Widgets) -->
     <aside class="right-sidebar">
       <div class="widget">
-        <h3>Instructor</h3>
+        <h3><%= t.course.instructor %></h3>
         <div style="display:flex; align-items:center; gap:12px;">
           <div style="width:40px; height:40px; border-radius:50%; background:var(--blue-soft); color:var(--blue); display:grid; place-items:center; font-weight:800;">
             <%= (course.teacher_name || 'T').charAt(0) %>
           </div>
           <div>
             <strong style="display:block; font-size:14px; color:var(--navy);"><%= course.teacher_name || 'TBA' %></strong>
-            <span style="font-size:12px; color:var(--muted);">Instructor</span>
           </div>
         </div>
       </div>
       
       <div class="widget">
-        <h3>Upcoming Events</h3>
+        <h3><%= t.course.upcoming %></h3>
         <p><i class="fa-solid fa-file-pen" style="color:var(--blue);"></i> Assignment 1 Due</p>
         <p><i class="fa-solid fa-stopwatch" style="color:#d34d5b;"></i> Quiz 1 Opens</p>
       </div>

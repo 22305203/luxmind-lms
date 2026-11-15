@@ -23,25 +23,50 @@ const translations = {
     portal_title: "LUXMIND PORTAL",
     greeting: { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening" },
     nav: { home: "Home", courses: "My Courses", announcements: "Site announcements", logout: "Log out" },
-    dash: { online: "Online Users", site_ann: "Site announcements", course_overview: "Course Overview", no_courses: "You are not enrolled in any courses.", no_ann: "No announcements yet.", credits: "Credits" }
+    dash: { online: "Online Users", site_ann: "Site announcements", course_overview: "Course Overview", no_courses: "You are not enrolled in any courses.", no_ann: "No announcements yet.", credits: "Credits" },
+    // Course Page Translations
+    course: {
+      home: "Course Home", announcements: "Announcements", syllabus: "Syllabus", materials: "Course Materials",
+      assignments: "Assignments", quizzes: "Quizzes", forums: "Discussion Forums", grades: "My Grades",
+      attendance: "My Attendance", evaluation: "Course Evaluation", instructor: "Instructor", upcoming: "Upcoming Events",
+      submit: "Submit Work", start: "Start Quiz", view: "View / Download", no_mat: "No materials uploaded yet.", no_assign: "No assignments yet.", due: "Due", points: "Points", time_limit: "Time Limit"
+    }
   },
   fr: {
     portal_title: "PORTAIL LUXMIND",
     greeting: { morning: "Bonjour", afternoon: "Bon après-midi", evening: "Bonsoir" },
     nav: { home: "Accueil", courses: "Mes Cours", announcements: "Annonces du site", logout: "Déconnexion" },
-    dash: { online: "Utilisateurs en ligne", site_ann: "Annonces du site", course_overview: "Aperçu des cours", no_courses: "Vous n'êtes inscrit à aucun cours.", no_ann: "Aucune annonce pour le moment.", credits: "Crédits" }
+    dash: { online: "Utilisateurs en ligne", site_ann: "Annonces du site", course_overview: "Aperçu des cours", no_courses: "Vous n'êtes inscrit à aucun cours.", no_ann: "Aucune annonce pour le moment.", credits: "Crédits" },
+    course: {
+      home: "Accueil du cours", announcements: "Annonces", syllabus: "Programme", materials: "Supports de cours",
+      assignments: "Devoirs", quizzes: "Quiz", forums: "Forums de discussion", grades: "Mes Notes",
+      attendance: "Ma Présence", evaluation: "Évaluation du cours", instructor: "Instructeur", upcoming: "Événements à venir",
+      submit: "Soumettre", start: "Commencer le Quiz", view: "Voir / Télécharger", no_mat: "Aucun support pour le moment.", no_assign: "Aucun devoir.", due: "Échéance", points: "Points", time_limit: "Temps limite"
+    }
   },
   rn: {
     portal_title: "URUGO RWA LUXMIND",
     greeting: { morning: "Mwaramutse", afternoon: "Mwiriwe", evening: "Mwiriwe" },
     nav: { home: "Ahabanza", courses: "Amasomo Yanje", announcements: "Amatangazo", logout: "Sohoka" },
-    dash: { online: "Abakoresha kumurongo", site_ann: "Amatangazo y'urubuga", course_overview: "Incamake y'amasomo", no_courses: "Ntamasomo wiyandikishije.", no_ann: "Nta matangazo arahari.", credits: "Amanota" }
+    dash: { online: "Abakoresha kumurongo", site_ann: "Amatangazo", course_overview: "Incamake y'amasomo", no_courses: "Ntamasomo wiyandikishije.", no_ann: "Nta matangazo arahari.", credits: "Amanota" },
+    course: {
+      home: "Ahabanza h'isomo", announcements: "Amatangazo", syllabus: "Gahunda y'isomo", materials: "Ibikoresho vy'isomo",
+      assignments: "Ibikorwa", quizzes: "Ibibazo", forums: "Ibiganiro", grades: "Amanota yanje",
+      attendance: "Uko naje kw'isomo", evaluation: "Gusuzuma isomo", instructor: "Umwarimu", upcoming: "Ibikorwa biri imbere",
+      submit: "Tanga", start: "Tangira", view: "Raba / Kurura", no_mat: "Nta bikoresho birashirwaho.", no_assign: "Nta bikorwa birashirwaho.", due: "Iherezo", points: "Amanota", time_limit: "Igihe ntarengwa"
+    }
   },
   sw: {
     portal_title: "LUXMIND PORTAL",
     greeting: { morning: "Habari za asubuhi", afternoon: "Habari za mchana", evening: "Habari za jioni" },
     nav: { home: "Nyumbani", courses: "Kozi Zangu", announcements: "Matangazo", logout: "Toka" },
-    dash: { online: "Watumiaji Mtandaoni", site_ann: "Matangazo ya Tovuti", course_overview: "Muhtasari wa Kozi", no_courses: "Haujasajiliwa katika kozi yoyote.", no_ann: "Hakuna matangazo bado.", credits: "Mikopo" }
+    dash: { online: "Watumiaji Mtandaoni", site_ann: "Matangazo", course_overview: "Muhtasari wa Kozi", no_courses: "Haujasajiliwa katika kozi yoyote.", no_ann: "Hakuna matangazo bado.", credits: "Mikopo" },
+    course: {
+      home: "Nyumbani kwa Kozi", announcements: "Matangazo", syllabus: "Mwongozo", materials: "Vifaa vya Kozi",
+      assignments: "Kazi", quizzes: "Maswali", forums: "Majadiliano", grades: "Alama Zangu",
+      attendance: "Mahudhurio Yangu", evaluation: "Tathmini ya Kozi", instructor: "Mwalimu", upcoming: "Matukio Yajayo",
+      submit: "Wasilisha", start: "Anza", view: "Tazama / Pakua", no_mat: "Hakuna vifaa bado.", no_assign: "Hakuna kazi bado.", due: "Mwisho", points: "Alama", time_limit: "Muda"
+    }
   }
 };
 
