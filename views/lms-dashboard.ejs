@@ -4,250 +4,204 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= t.portal_title %> | LuxMind</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
     :root {
-      --navy: #111d35; --page: #f4f6fa; --surface: #fff; --text: #172238; --muted: #718096;
-      --line: #e6ebf2; --blue: #3867e8; --blue-soft: #edf2ff; --shadow: 0 8px 28px rgba(24, 39, 75, .055); --radius: 16px;
+      --navy: #0f172a; --navy-light: #1e293b; --page: #f8fafc; --surface: #fff; 
+      --text: #0f172a; --muted: #64748b; --line: #e2e8f0; 
+      --blue: #3b82f6; --blue-soft: #eff6ff; --shadow: 0 10px 30px rgba(15, 23, 42, 0.05); 
+      --radius: 20px;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font-family: "DM Sans", sans-serif; }
+    body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font-family: "DM Sans", sans-serif; display: flex; }
     a { color: inherit; text-decoration: none; }
 
-    /* Topbar & Notifications Dropdown */
-    .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 16px; background: linear-gradient(135deg, #527df2, #3157cb); }
-    .brand-name { color: var(--navy); font: 800 18px "Manrope", sans-serif; letter-spacing: 1px; }
+    /* ============ PREMIUM SIDEBAR ============ */
+    .sidebar { width: 280px; background: var(--navy); color: #94a3b8; display: flex; flex-direction: column; padding: 24px; position: fixed; height: 100vh; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #fff; font-size: 20px; background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 8px 20px rgba(37,99,235,0.3); }
+    .brand-name { color: #fff; font: 800 18px "Manrope", sans-serif; letter-spacing: 0.5px; }
     
-    .nav-right { display: flex; align-items: center; gap: 20px; }
-    .lang-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #f4f6fa; color: var(--navy); font-weight: 600; font-size: 13px; outline: none; cursor: pointer; }
-    
-    /* Notification Dropdown Logic */
-    .notif-wrapper { position: relative; }
-    .notif-btn { background: #f4f6fa; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; color: var(--muted); font-size: 16px; transition: 0.2s; position: relative; }
-    .notif-btn:hover { background: #e2e8f0; color: var(--navy); }
-    .notif-badge { position: absolute; top: 0; right: 0; background: #d34d5b; color: white; font-size: 10px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #fff; }
-    
-    .notif-dropdown { position: absolute; top: 50px; right: 0; width: 300px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: none; flex-direction: column; z-index: 200; overflow: hidden; }
-    .notif-dropdown.active { display: flex; }
-    .notif-header { padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 800; color: var(--navy); background: #fafbfe; }
-    .notif-item { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13px; color: #4c5a70; transition: 0.2s; }
-    .notif-item:hover { background: #f4f6fa; }
-    .notif-item strong { display: block; color: var(--navy); margin-bottom: 4px; }
-
-    .user-menu { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--navy); border-left: 1px solid var(--line); padding-left: 20px; }
-    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #527df2, #3157cb); color: white; display: grid; place-items: center; font-weight: 800; }
-    .user-menu a { color: #d34d5b; margin-left: 10px; font-size: 13px; }
-
-    /* 3-Column Layout */
-    .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; display: grid; grid-template-columns: 260px 1fr 300px; gap: 24px; }
-    
-    /* Sidebar */
-    .side-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; border: 1px solid var(--line); margin-bottom: 24px; }
-    .side-card h3 { margin: 0 0 16px; font: 800 14px "Manrope", sans-serif; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
     .nav-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-    .nav-list a { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: #4c5a70; padding: 10px 12px; border-radius: 8px; transition: 0.2s; }
-    .nav-list a:hover, .nav-list a.active { background: var(--blue-soft); color: var(--blue); }
-    .nav-list i { width: 20px; text-align: center; }
+    .nav-link { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 12px; font-size: 15px; font-weight: 600; transition: 0.3s; }
+    .nav-link i { font-size: 18px; }
+    .nav-link:hover, .nav-link.active { background: rgba(255,255,255,0.08); color: #fff; }
+    .nav-link.active { background: linear-gradient(90deg, rgba(59,130,246,0.2), transparent); border-left: 4px solid var(--blue); border-radius: 4px 12px 12px 4px; }
 
-    /* Main Content */
-    .main-content { display: flex; flex-direction: column; gap: 24px; }
-    .greeting-banner { background: linear-gradient(135deg, var(--navy), #1c3155); color: white; padding: 32px; border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); }
-    .greeting-banner h1 { margin: 0 0 8px; font: 800 28px "Manrope", sans-serif; }
-    .greeting-banner p { margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; }
+    .sidebar-user { margin-top: auto; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 12px; }
+    .sidebar-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; display: grid; place-items: center; font-weight: 800; font-size: 16px; }
+    .sidebar-user-info p { margin: 0; font-size: 14px; color: #fff; font-weight: 600; }
+    .sidebar-user-info span { font-size: 12px; color: #64748b; }
+    .logout-btn { margin-left: auto; color: #ef4444; font-size: 16px; transition: 0.2s; }
+    .logout-btn:hover { color: #b91c1c; }
+
+    /* ============ MAIN CONTENT ============ */
+    .main { margin-left: 280px; padding: 32px 40px; flex: 1; width: calc(100% - 280px); }
     
-    .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; }
-    .block-header { padding: 20px 24px; border-bottom: 1px solid var(--line); font: 800 18px "Manrope", sans-serif; color: var(--navy); }
-    .block-body { padding: 24px; }
+    /* Top Bar */
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+    .lang-select { padding: 8px 16px; border-radius: 30px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13px; cursor: pointer; outline: none; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+    .notif-btn { position: relative; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); cursor: pointer; color: var(--muted); font-size: 18px; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+    .notif-btn:hover { color: var(--navy); border-color: var(--navy); }
+    .notif-badge { position: absolute; top: -2px; right: -2px; background: #ef4444; color: white; font-size: 10px; font-weight: 800; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #fff; }
+
+    /* Greeting Section */
+    .greeting { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: var(--radius); padding: 40px; position: relative; overflow: hidden; box-shadow: 0 20px 40px rgba(15,23,42,0.15); margin-bottom: 32px; }
+    .greeting::before { content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%); border-radius: 50%; }
+    .greeting h1 { margin: 0 0 10px; font: 800 32px "Manrope", sans-serif; position: relative; z-index: 1; }
+    .greeting p { margin: 0; color: #94a3b8; font-size: 16px; position: relative; z-index: 1; }
+
+    /* Bento Grid Layout */
+    .grid-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
     
-    .course-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .course-card { position: relative; border-radius: 12px; padding: 20px; text-decoration: none; display: flex; flex-direction: column; transition: 0.3s; overflow: hidden; background: linear-gradient(135deg, #2a3b5c, #111d35); color: white; }
-    .course-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(11,31,58,0.3); }
-    .course-code { display: inline-block; padding: 4px 10px; background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); border-radius: 6px; font-size: 11px; font-weight: 800; letter-spacing: 1px; margin-bottom: 12px; align-self: flex-start; position: relative; z-index: 1; }
-    .course-card h3 { margin: 0 0 8px; font: 800 18px "Manrope", sans-serif; position: relative; z-index: 1; }
-    .course-card p { margin: 0; font-size: 13px; color: rgba(255,255,255,0.7); position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+    /* Blocks */
+    .block { background: var(--surface); border-radius: var(--radius); padding: 32px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .block-title { font: 800 20px "Manrope", sans-serif; color: var(--navy); margin: 0; }
 
-    /* Right Sidebar (Widgets) */
-    .right-widgets { display: flex; flex-direction: column; gap: 24px; }
-    .deadline-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-    .deadline-item:last-child { border-bottom: 0; }
-    .deadline-date { background: var(--blue-soft); color: var(--blue); font-weight: 800; font-size: 12px; padding: 6px 10px; border-radius: 6px; text-align: center; min-width: 55px; }
-    .deadline-info h4 { margin: 0 0 4px; font-size: 14px; color: var(--navy); }
-    .deadline-info p { margin: 0; font-size: 12px; color: var(--muted); }
+    /* Premium Course Cards */
+    .course-card { display: flex; justify-content: space-between; align-items: center; padding: 24px; border-radius: 16px; background: #f8fafc; border: 1px solid var(--line); margin-bottom: 16px; transition: 0.3s; position: relative; overflow: hidden; }
+    .course-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(15,23,42,0.08); border-color: var(--blue); background: #fff; }
+    .course-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--blue); border-radius: 16px 0 0 16px; }
+    .course-info h3 { margin: 0 0 6px; font: 800 20px "Manrope", sans-serif; color: var(--navy); }
+    .course-code { display: inline-block; padding: 4px 10px; background: var(--blue-soft); color: var(--blue); border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; }
+    .course-teacher { color: var(--muted); font-size: 14px; margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+    .btn-enter-course { padding: 10px 24px; background: var(--navy); color: white; border-radius: 10px; font-weight: 700; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-enter-course:hover { background: var(--blue); }
 
-    @media (max-width: 1200px) {
-      .container { grid-template-columns: 260px 1fr; }
-      .right-widgets { display: none; }
+    /* Announcements */
+    .ann-item { display: flex; gap: 16px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+    .ann-item:last-child { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+    .ann-icon { width: 48px; height: 48px; border-radius: 12px; background: #eff6ff; color: var(--blue); display: grid; place-items: center; font-size: 20px; flex-shrink: 0; }
+    .ann-content h4 { margin: 0 0 6px; font-size: 16px; color: var(--navy); }
+    .ann-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .ann-text { margin: 0; font-size: 14px; color: #475569; line-height: 1.6; }
+
+    @media (max-width: 1024px) {
+      .grid-layout { grid-template-columns: 1fr; }
     }
-    @media (max-width: 900px) {
-      .container { grid-template-columns: 1fr; }
-      .course-grid { grid-template-columns: 1fr; }
-      .topbar { flex-direction: column; align-items: flex-start; gap: 16px; padding: 16px 20px; }
-      .nav-right { width: 100%; justify-content: space-between; }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: 0.3s; z-index: 1000; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; width: 100%; padding: 20px; }
+      .course-card { flex-direction: column; align-items: flex-start; gap: 20px; }
+      .btn-enter-course { width: 100%; justify-content: center; }
     }
   </style>
 </head>
 <body>
-  <!-- Topbar -->
-  <header class="topbar">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark"><i class="fa-solid fa-book-open"></i></div>
       <div class="brand-name"><%= t.portal_title %></div>
     </div>
     
-    <div class="nav-right">
-      <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
-        <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
-        <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
-        <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 Kirundi</option>
-        <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
-      </select>
+    <ul class="nav-list">
+      <li><a href="/dashboard" class="nav-link active"><i class="fa-solid fa-house"></i> <%= t.nav.home %></a></li>
+      <li><a href="#" class="nav-link"><i class="fa-solid fa-graduation-cap"></i> <%= t.nav.courses %></a></li>
+      <li><a href="#" class="nav-link"><i class="fa-solid fa-bullhorn"></i> <%= t.nav.announcements %></a></li>
+    </ul>
 
-      <!-- FUNCTIONAL NOTIFICATION BELL -->
-      <div class="notif-wrapper">
-        <button class="notif-btn" onclick="document.getElementById('notifDropdown').classList.toggle('active')">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar"><%= user.full_name.charAt(0) %></div>
+      <div class="sidebar-user-info">
+        <p><%= user.full_name %></p>
+        <span><%= user.role %></span>
+      </div>
+      <a href="/logout" class="logout-btn" title="<%= t.nav.logout %>"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+    
+    <!-- Top Bar -->
+    <header class="topbar">
+      <h2 style="margin:0; font:800 24px 'Manrope'; color:var(--navy);">Dashboard</h2>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
+          <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
+          <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
+          <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 Kirundi</option>
+          <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
+        </select>
+        <button class="notif-btn">
           <i class="fa-regular fa-bell"></i>
           <span class="notif-badge">3</span>
         </button>
-        <div class="notif-dropdown" id="notifDropdown">
-          <div class="notif-header">Notifications</div>
-          <% notifications.forEach(n => { %>
-            <a href="#" class="notif-item">
-              <strong><%= n.title %></strong>
-              <span><%= new Date(n.created_at).toLocaleDateString() %></span>
+      </div>
+    </header>
+
+    <!-- Greeting -->
+    <div class="greeting">
+      <h1><%= greeting %>, <%= user.full_name.split(' ')[0] %>! 👋</h1>
+      <p>You have classes to catch up on. Let's make today productive.</p>
+    </div>
+
+    <!-- Bento Grid -->
+    <div class="grid-layout">
+      
+      <!-- Left Column: Courses -->
+      <div class="block">
+        <div class="block-header">
+          <h3 class="block-title"><%= t.dash.course_overview %></h3>
+        </div>
+        
+        <% if (courses.length === 0) { %>
+          <p style="color: var(--muted); margin: 0;"><%= t.dash.no_courses %></p>
+        <% } else { %>
+          <% courses.forEach(c => { %>
+            <a href="/course/<%= c.id %>" class="course-card">
+              <div class="course-info">
+                <span class="course-code"><%= c.code %></span>
+                <h3><%= c.title %></h3>
+                <div class="course-teacher"><i class="fa-solid fa-user-tie"></i> <%= c.teacher_name || 'TBA' %></div>
+              </div>
+              <span class="btn-enter-course">Enter Course <i class="fa-solid fa-arrow-right"></i></span>
             </a>
           <% }); %>
+        <% } %>
+      </div>
+
+      <!-- Right Column: Announcements & Online Users -->
+      <div style="display:flex; flex-direction:column; gap:24px;">
+        
+        <!-- Online Users -->
+        <div class="block" style="padding: 24px;">
+          <h3 class="block-title" style="font-size: 16px; margin-bottom: 16px;"><%= t.dash.online %></h3>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:var(--muted);">
+            <div style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 10px #10b981;"></div>
+            <strong><%= onlineUsers %></strong> users online
+          </div>
         </div>
-      </div>
-      
-      <div class="user-menu">
-        <div class="user-avatar"><%= user.full_name.charAt(0) %></div>
-        <span><%= user.full_name %></span>
-        <a href="/logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
-      </div>
-    </div>
-  </header>
 
-  <div class="container">
-    <!-- Left Sidebar -->
-    <aside class="side-nav">
-      <div class="side-card">
-        <h3>Navigation</h3>
-        <ul class="nav-list">
-          <li><a href="/dashboard" class="active"><i class="fa-solid fa-house"></i> <%= t.nav.home %></a></li>
-          <li><a href="#"><i class="fa-solid fa-graduation-cap"></i> <%= t.nav.courses %></a></li>
-          <li><a href="#"><i class="fa-solid fa-bullhorn"></i> <%= t.nav.announcements %></a></li>
-        </ul>
-      </div>
-      <div class="side-card">
-        <h3><%= t.dash.online %></h3>
-        <p style="margin:0; font-size: 13px; color: var(--muted);">
-          <i class="fa-solid fa-circle" style="color: #15966b; font-size: 10px;"></i> 
-          <strong><%= onlineUsers %></strong> online
-        </p>
-      </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-      <!-- DYNAMIC GREETING BANNER -->
-      <div class="greeting-banner">
-        <div>
-          <h1><%= greeting %>, <%= user.full_name.split(' ')[0] %>!</h1>
-          <p>Welcome to your learning portal. You have classes to catch up on.</p>
-        </div>
-        <i class="fa-solid fa-sun" style="font-size: 48px; color: rgba(255,255,255,0.15);"></i>
-      </div>
-
-      <!-- Site Announcements -->
-      <div class="block">
-        <div class="block-header"><%= t.dash.site_ann %></div>
-        <div class="block-body">
+        <!-- Announcements -->
+        <div class="block">
+          <div class="block-header">
+            <h3 class="block-title" style="font-size: 18px;"><%= t.dash.site_ann %></h3>
+          </div>
           <% if (announcements.length === 0) { %>
             <p style="color: var(--muted); margin: 0;"><%= t.dash.no_ann %></p>
           <% } else { %>
-            <% announcements.forEach(a => { %>
-              <div style="display: flex; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 16px;">
-                <div style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: grid; place-items: center; color: #64748b; flex-shrink: 0;"><i class="fa-regular fa-user"></i></div>
-                <div>
-                  <h4 style="margin: 0 0 4px; color: var(--navy);"><%= a.title %></h4>
-                  <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">by <strong><%= a.author_name || 'System' %></strong></div>
-                  <p style="margin: 0; font-size: 14px; color: #4c5a70;"><%= a.message %></p>
+            <% announcements.slice(0, 3).forEach(a => { %>
+              <div class="ann-item">
+                <div class="ann-icon"><i class="fa-solid fa-bullhorn"></i></div>
+                <div class="ann-content">
+                  <h4><%= a.title %></h4>
+                  <div class="ann-meta">by <strong><%= a.author_name || 'System' %></strong></div>
+                  <p class="ann-text"><%= a.message %></p>
                 </div>
               </div>
             <% }); %>
           <% } %>
         </div>
+
       </div>
+    </div>
 
-      <!-- Course overview -->
-      <div class="block">
-        <div class="block-header"><%= t.dash.course_overview %></div>
-        <div class="block-body">
-          <% if (courses.length === 0) { %>
-            <p style="color: var(--muted); margin: 0;"><%= t.dash.no_courses %></p>
-          <% } else { %>
-            <div class="course-grid">
-              <% courses.forEach(c => { %>
-                <a href="/course/<%= c.id %>" class="course-card">
-                  <span class="course-code"><%= c.code %></span>
-                  <h3><%= c.title %></h3>
-                  <p><i class="fa-solid fa-user-tie"></i> <%= c.teacher_name || 'TBA' %></p>
-                </a>
-              <% }); %>
-            </div>
-          <% } %>
-        </div>
-      </div>
-    </main>
-
-    <!-- RIGHT SIDEBAR (WIDGETS) -->
-    <aside class="right-widgets">
-      
-      <!-- Upcoming Deadlines Widget -->
-      <div class="block">
-        <div class="block-header" style="font-size: 16px;">Upcoming Deadlines</div>
-        <div class="block-body" style="padding: 16px 20px;">
-          <% if (upcomingDeadlines.length === 0) { %>
-            <p style="color: var(--muted); font-size: 13px; margin: 0;">No upcoming deadlines. You are all caught up! 🎉</p>
-          <% } else { %>
-            <% upcomingDeadlines.forEach(d => { %>
-              <div class="deadline-item">
-                <div class="deadline-date">
-                  <%= new Date(d.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) %>
-                </div>
-                <div class="deadline-info">
-                  <h4><%= d.title %></h4>
-                  <p><%= d.code %></p>
-                </div>
-              </div>
-            <% }); %>
-          <% } %>
-        </div>
-      </div>
-
-      <!-- Quick Links Widget -->
-      <div class="block">
-        <div class="block-header" style="font-size: 16px;">Quick Links</div>
-        <div class="block-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 10px;">
-          <a href="https://luxmind-sis-v2-2c2t.onrender.com/login" style="font-size: 13px; font-weight: 600; color: var(--blue);"><i class="fa-solid fa-arrow-up-right-from-square" style="margin-right:8px;"></i> Go to SIS Portal</a>
-          <a href="#" style="font-size: 13px; font-weight: 600; color: var(--blue);"><i class="fa-solid fa-book" style="margin-right:8px;"></i> Library Resources</a>
-          <a href="#" style="font-size: 13px; font-weight: 600; color: var(--blue);"><i class="fa-solid fa-headset" style="margin-right:8px;"></i> IT Support</a>
-        </div>
-      </div>
-
-    </aside>
-  </div>
-
-  <script>
-    // Close notification dropdown when clicking outside
-    window.onclick = function(event) {
-      if (!event.target.closest('.notif-wrapper')) {
-        document.getElementById('notifDropdown').classList.remove('active');
-      }
-    }
-  </script>
+  </main>
 </body>
 </html>
