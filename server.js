@@ -25,6 +25,9 @@ app.use(session({
     httpOnly: true
   }
 }));
+app.get('/', (req, res) => {
+  res.redirect('/dashboard');
+});
 
 // ============================================
 // --- i18n: TRANSLATIONS & MIDDLEWARE ---
