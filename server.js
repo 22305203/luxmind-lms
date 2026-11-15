@@ -293,4 +293,24 @@ app.get('/logout', (req, res) => {
   res.redirect('/login');
 });
 
+
+
+app.get('/debug-teacher', async (req, res) => {
+  if (!req.session.user) return res.send('You are not logged in. Please log in first.');
+  
+  try {
+    const user = req.session.user;
+    const allSections = await pool.query(`SELECT id, course_id, teacher_id, group_name FROM course_sections`);
+    const mySections = await pool.query(`SELECT * FROM course_sections WHERE teacher_id = $1`, [user.id]);
+    
+    res.json({ 
+      loggedInUser: user,
+      allSectionsInDB: allSections.rows,
+      mySections: mySections.rows
+    });
+  } catch (err) {
+    res.send("Error: " + err.message);
+  }
+});
+
 app.listen(process.env.PORT || 3001, () => console.log('LuxMind LMS running'));
