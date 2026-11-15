@@ -8,7 +8,7 @@ const app = express();
 
 app.set('trust proxy', 1);
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: 'postgresql://postgres.fclhdbppskmjlmbhtoug:LuxMindAdmin2026@aws-1-eu-central-1.pooler.supabase.com:6543/postgres',
   ssl: { rejectUnauthorized: false }
 });
 
