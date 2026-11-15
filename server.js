@@ -11,6 +11,7 @@ const pool = new Pool({
   connectionString: 'postgresql://postgres.fclhdbppskmjlmbhtoug:LuxMindAdmin2026@aws-1-eu-central-1.pooler.supabase.com:6543/postgres',
   ssl: { rejectUnauthorized: false }
 });
+console.log("🔥 ATTEMPTING DB CONNECTION WITH:", process.env.DATABASE_URL || 'HARDCODED_URL_USED');
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
