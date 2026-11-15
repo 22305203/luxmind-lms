@@ -93,14 +93,28 @@
         <span class="course-code-side"><%= course.code %></span>
         <h2><%= course.title %></h2>
       </div>
-      <ul class="nav-list">
+           <ul class="nav-list">
         <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Course Home</a></li>
         <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
+        
+        <!-- NEW: Syllabus -->
+        <li><a href="/course/<%= course.id %>?view=syllabus" class="<%= view === 'syllabus' ? 'active' : '' %>"><i class="fa-solid fa-file-contract"></i> Syllabus</a></li>
+        
+        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
+        
         <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
         <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes</a></li>
-        <!-- NEW MATERIALS TAB -->
-        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
+        
+        <!-- NEW: Forums -->
+        <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>
+        
         <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> My Grades</a></li>
+        
+        <!-- NEW: Attendance -->
+        <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-calendar-check"></i> My Attendance</a></li>
+        
+        <!-- NEW: Evaluations -->
+        <li><a href="/course/<%= course.id %>?view=evaluation" class="<%= view === 'evaluation' ? 'active' : '' %>"><i class="fa-solid fa-star"></i> Course Evaluation</a></li>
       </ul>
     </aside>
 
@@ -207,6 +221,49 @@
           <% }); %>
         <% } %>
       <% } %>
+
+
+
+      <!-- SYLLABUS VIEW -->
+      <% if (view === 'syllabus') { %>
+        <h1 class="section-title">Course Syllabus</h1>
+        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
+          <i class="fa-solid fa-file-pdf" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0 0 8px;">Syllabus PDF</h3>
+          <p style="color: var(--muted); margin-bottom: 20px;">The instructor has not uploaded the syllabus yet.</p>
+        </div>
+      <% } %>
+
+      <!-- FORUMS VIEW -->
+      <% if (view === 'forums') { %>
+        <h1 class="section-title">Discussion Forums</h1>
+        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
+          <i class="fa-solid fa-comments" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0 0 8px;">Course Q&A</h3>
+          <p style="color: var(--muted);">Ask questions and discuss course topics with your classmates here.</p>
+        </div>
+      <% } %>
+
+      <!-- ATTENDANCE VIEW -->
+      <% if (view === 'attendance') { %>
+        <h1 class="section-title">My Attendance</h1>
+        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
+          <i class="fa-solid fa-calendar-check" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0 0 8px;">Attendance Record</h3>
+          <p style="color: var(--muted);">Your attendance for this course will be linked from the SIS here.</p>
+        </div>
+      <% } %>
+
+      <!-- EVALUATION VIEW -->
+      <% if (view === 'evaluation') { %>
+        <h1 class="section-title">Course Evaluation</h1>
+        <div class="item-card" style="display:block; padding: 40px; text-align: center;">
+          <i class="fa-solid fa-star" style="font-size: 40px; color: var(--muted); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0 0 8px;">Rate this Course</h3>
+          <p style="color: var(--muted);">The evaluation form will open at the end of the semester.</p>
+        </div>
+      <% } %>
+
 
     </main>
 
