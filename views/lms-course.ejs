@@ -9,7 +9,8 @@
   <style>
     :root {
       --navy: #111d35; --page: #f4f6fa; --surface: #fff; --text: #172238; --muted: #718096;
-      --line: #e6ebf2; --blue: #3867e8; --blue-soft: #edf2ff; --shadow: 0 8px 28px rgba(24, 39, 75, .055); --radius: 16px;
+      --line: #e6ebf2; --blue: #3867e8; --blue-soft: #edf2ff; --green: #15966b; --green-soft: #e9f8f1;
+      --shadow: 0 8px 28px rgba(24, 39, 75, .055); --radius: 16px;
     }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font-family: "DM Sans", sans-serif; }
@@ -40,22 +41,27 @@
     .main-content { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); padding: 32px; }
     .section-title { font: 800 24px "Manrope", sans-serif; color: #142039; margin: 0 0 24px 0; border-bottom: 2px solid var(--line); padding-bottom: 16px; }
     
-    /* Assignment Cards */
-    .item-card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-    .item-card:hover { border-color: var(--blue); background: #fafbfe; }
+    /* Item Cards (Assignments, Quizzes, Materials) */
+    .item-card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; background: #fafbfe; }
+    .item-card:hover { border-color: var(--blue); background: #fff; box-shadow: 0 4px 12px rgba(56,103,232,0.05); }
     .item-info h4 { margin: 0 0 6px; font-size: 16px; color: #142039; }
-    .item-meta { font-size: 13px; color: var(--muted); display: flex; gap: 12px; }
-    .btn { padding: 8px 16px; background: var(--blue); color: white; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; }
+    .item-meta { font-size: 13px; color: var(--muted); display: flex; gap: 16px; align-items: center; }
+    
+    /* Buttons */
+    .btn { padding: 10px 18px; background: var(--blue); color: white; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+    .btn:hover { background: #2a53c9; }
+    .btn-green { background: var(--green); }
+    .btn-green:hover { background: #0f7d57; }
 
     /* Right Sidebar (Widgets) */
     .right-sidebar { display: flex; flex-direction: column; gap: 24px; }
     .widget { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); padding: 24px; }
     .widget h3 { margin: 0 0 16px; font: 800 16px "Manrope", sans-serif; color: var(--navy); }
-    .widget p { font-size: 14px; color: var(--muted); margin: 0 0 8px; }
+    .widget p { font-size: 14px; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
 
     @media (max-width: 1100px) {
       .container { grid-template-columns: 260px 1fr; }
-      .right-sidebar { display: none; /* Hide right sidebar on tablets */ }
+      .right-sidebar { display: none; }
     }
     @media (max-width: 800px) {
       .container { grid-template-columns: 1fr; }
@@ -92,14 +98,38 @@
         <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
         <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
         <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes</a></li>
-        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> Grades</a></li>
+        <!-- NEW MATERIALS TAB -->
+        <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
+        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> My Grades</a></li>
       </ul>
     </aside>
 
     <!-- Middle Content Area (Dynamic based on view) -->
     <main class="main-content">
       
-      <% if (view === 'dashboard' || view === 'assignments') { %>
+      <!-- DASHBOARD VIEW -->
+      <% if (view === 'dashboard') { %>
+        <h1 class="section-title">Welcome to <%= course.title %></h1>
+        <p style="color: var(--muted); font-size: 15px; line-height: 1.6;">Select a topic from the left sidebar to view your assignments, notes, or grades.</p>
+      <% } %>
+
+      <!-- ANNOUNCEMENTS VIEW -->
+      <% if (view === 'announcements') { %>
+        <h1 class="section-title">Course Announcements</h1>
+        <% if (announcements.length === 0) { %>
+          <p style="color: var(--muted);">No announcements yet.</p>
+        <% } else { %>
+          <% announcements.forEach(a => { %>
+            <div class="item-card" style="display: block;">
+              <h4><%= a.title %></h4>
+              <p style="color: var(--muted); margin: 8px 0 0; font-size:14px; line-height:1.6;"><%= a.message %></p>
+            </div>
+          <% }); %>
+        <% } %>
+      <% } %>
+
+      <!-- ASSIGNMENTS VIEW -->
+      <% if (view === 'assignments' || view === 'dashboard') { %>
         <h1 class="section-title">Assignments</h1>
         <% if (assignments.length === 0) { %>
           <p style="color: var(--muted);">No assignments yet.</p>
@@ -113,12 +143,13 @@
                   <span><i class="fa-solid fa-star"></i> <%= a.max_points %> Points</span>
                 </div>
               </div>
-              <button class="btn">Submit</button>
+              <button class="btn"><i class="fa-solid fa-upload"></i> Submit Work</button>
             </div>
           <% }); %>
         <% } %>
       <% } %>
 
+      <!-- QUIZZES VIEW -->
       <% if (view === 'quizzes') { %>
         <h1 class="section-title">Quizzes</h1>
         <% if (quizzes.length === 0) { %>
@@ -132,12 +163,33 @@
                   <span><i class="fa-regular fa-clock"></i> Time Limit: <%= q.time_limit_minutes %> mins</span>
                 </div>
               </div>
-              <button class="btn">Start Quiz</button>
+              <button class="btn"><i class="fa-solid fa-play"></i> Start Quiz</button>
             </div>
           <% }); %>
         <% } %>
       <% } %>
 
+      <!-- COURSE MATERIALS (NOTES) VIEW -->
+      <% if (view === 'materials') { %>
+        <h1 class="section-title">Course Materials & Notes</h1>
+        <% if (materials.length === 0) { %>
+          <p style="color: var(--muted);">The teacher has not uploaded any notes or files yet.</p>
+        <% } else { %>
+          <% materials.forEach(m => { %>
+            <div class="item-card">
+              <div class="item-info">
+                <h4><%= m.title %></h4>
+                <div class="item-meta">
+                  <span><i class="fa-solid fa-calendar"></i> Week <%= m.week_number %></span>
+                </div>
+              </div>
+              <a href="<%= m.file_url %>" target="_blank" class="btn btn-green"><i class="fa-solid fa-download"></i> View / Download</a>
+            </div>
+          <% }); %>
+        <% } %>
+      <% } %>
+
+      <!-- GRADES VIEW -->
       <% if (view === 'grades') { %>
         <h1 class="section-title">My Grades</h1>
         <% if (grades.length === 0) { %>
@@ -154,16 +206,6 @@
             </div>
           <% }); %>
         <% } %>
-      <% } %>
-
-      <% if (view === 'announcements') { %>
-        <h1 class="section-title">Course Announcements</h1>
-        <% announcements.forEach(a => { %>
-          <div class="item-card" style="display: block;">
-            <h4><%= a.title %></h4>
-            <p style="color: var(--muted); margin: 8px 0 0;"><%= a.message %></p>
-          </div>
-        <% }); %>
       <% } %>
 
     </main>
@@ -185,8 +227,8 @@
       
       <div class="widget">
         <h3>Upcoming Events</h3>
-        <p><i class="fa-solid fa-file-pen" style="color:var(--blue); width:20px;"></i> Assignment 1 Due</p>
-        <p><i class="fa-solid fa-stopwatch" style="color:#d34d5b; width:20px;"></i> Quiz 1 Opens</p>
+        <p><i class="fa-solid fa-file-pen" style="color:var(--blue);"></i> Assignment 1 Due</p>
+        <p><i class="fa-solid fa-stopwatch" style="color:#d34d5b;"></i> Quiz 1 Opens</p>
       </div>
     </aside>
   </div>

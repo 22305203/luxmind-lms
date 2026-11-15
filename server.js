@@ -38,6 +38,7 @@ app.post('/login', async (req, res) => {
     res.status(500).send("Database Error: " + err.message);
   }
 });
+
 // LMS HOME DASHBOARD
 app.get('/dashboard', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
@@ -60,8 +61,7 @@ app.get('/dashboard', async (req, res) => {
       ORDER BY a.created_at DESC
     `);
 
-    // 3. Fetch online users (simple mock: users who logged in recently, or just a static number for now)
-    // In a real system, you'd track last_activity timestamps.
+    // 3. Fetch online users (simple mock)
     const onlineUsers = 3; 
 
     res.render('lms-dashboard', { 
@@ -75,12 +75,11 @@ app.get('/dashboard', async (req, res) => {
   }
 });
 
-// COURSE CONTENT PAGE
 // COURSE CONTENT PAGE (Multi-tab)
 app.get('/course/:id', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
-  const view = req.query.view || 'dashboard'; // dashboard, assignments, quizzes, grades, announcements
+  const view = req.query.view || 'dashboard'; // dashboard, assignments, quizzes, grades, announcements, materials
   
   try {
     const enrollCheck = await pool.query(
@@ -96,16 +95,18 @@ app.get('/course/:id', async (req, res) => {
     const course = enrollCheck.rows[0];
 
     // Fetch data based on the view
-    let assignments = [], quizzes = [], grades = [], announcements = [];
+    let assignments = [], quizzes = [], grades = [], announcements = [], materials = [];
     
     if (view === 'dashboard' || view === 'assignments') {
       const r = await pool.query(`SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
       assignments = r.rows;
     }
+    
     if (view === 'quizzes') {
       const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
       quizzes = r.rows;
     }
+    
     if (view === 'grades') {
       const r = await pool.query(`
         SELECT a.title, s.grade, a.max_points 
@@ -115,16 +116,27 @@ app.get('/course/:id', async (req, res) => {
       `, [req.session.user.id, courseId]);
       grades = r.rows;
     }
+    
     if (view === 'announcements') {
        // In a real app, you'd filter by course_id. For now, we mock it.
        announcements = [{ title: 'Welcome to CS101', message: 'Please read the syllabus.', date: new Date() }];
+    }
+
+    // FETCH MATERIALS (NOTES)
+    if (view === 'materials' || view === 'dashboard') {
+      const m = await pool.query(`SELECT * FROM lms_materials WHERE section_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]);
+      materials = m.rows;
     }
 
     res.render('lms-course', { 
       user: req.session.user, 
       course: course,
       view: view,
-      assignments, quizzes, grades, announcements
+      assignments, 
+      quizzes, 
+      grades, 
+      announcements, 
+      materials // <-- Passed to EJS
     });
   } catch (err) {
     res.status(500).send("Course Error: " + err.message);
