@@ -4,89 +4,172 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= t.portal_title %> | LuxMind</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
     :root {
-      --navy: #0f172a; --navy-light: #1e293b; --page: #f8fafc; --surface: #fff; 
-      --text: #0f172a; --muted: #64748b; --line: #e2e8f0; 
-      --blue: #3b82f6; --blue-soft: #eff6ff; --shadow: 0 10px 30px rgba(15, 23, 42, 0.05); 
-      --radius: 20px;
+      --bg: #09090b;
+      --surface: rgba(255, 255, 255, 0.03);
+      --surface-hover: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.5);
+      --success: #10b981;
+      --radius: 24px;
     }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font-family: "DM Sans", sans-serif; display: flex; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      min-height: 100vh; 
+      background: var(--bg); 
+      color: var(--text-main); 
+      font-family: "Inter", sans-serif; 
+      display: flex;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.05), transparent 25%);
+    }
     a { color: inherit; text-decoration: none; }
 
-    /* ============ PREMIUM SIDEBAR ============ */
-    .sidebar { width: 280px; background: var(--navy); color: #94a3b8; display: flex; flex-direction: column; padding: 24px; position: fixed; height: 100vh; }
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #fff; font-size: 20px; background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 8px 20px rgba(37,99,235,0.3); }
-    .brand-name { color: #fff; font: 800 18px "Manrope", sans-serif; letter-spacing: 0.5px; }
+    /* ==== SIDEBAR ==== */
+    .sidebar { 
+      width: 280px; 
+      height: calc(100vh - 40px); 
+      margin: 20px 0 20px 20px;
+      background: var(--surface); 
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex; flex-direction: column; padding: 32px 24px; 
+      position: fixed;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 48px; }
+    .brand-icon { 
+      width: 44px; height: 44px; border-radius: 14px; 
+      background: linear-gradient(135deg, #6366f1, #a855f7); 
+      display: grid; place-items: center; font-size: 20px; color: white;
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+    .brand-name { font-family: "Plus Jakarta Sans", sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -0.5px; }
     
-    .nav-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-    .nav-link { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 12px; font-size: 15px; font-weight: 600; transition: 0.3s; }
-    .nav-link i { font-size: 18px; }
-    .nav-link:hover, .nav-link.active { background: rgba(255,255,255,0.08); color: #fff; }
-    .nav-link.active { background: linear-gradient(90deg, rgba(59,130,246,0.2), transparent); border-left: 4px solid var(--blue); border-radius: 4px 12px 12px 4px; }
+    .nav-section { margin-bottom: 32px; }
+    .nav-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; padding-left: 12px; }
+    .nav-link { 
+      display: flex; align-items: center; gap: 14px; 
+      padding: 14px 16px; border-radius: 14px; 
+      font-size: 15px; font-weight: 600; color: var(--text-muted);
+      transition: all 0.3s;
+    }
+    .nav-link:hover { color: var(--text-main); background: var(--surface-hover); }
+    .nav-link.active { 
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), transparent);
+      color: #fff; border-left: 3px solid var(--accent);
+    }
+    .nav-link i { font-size: 18px; width: 24px; text-align: center; }
 
-    .sidebar-user { margin-top: auto; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 12px; }
-    .sidebar-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; display: grid; place-items: center; font-weight: 800; font-size: 16px; }
-    .sidebar-user-info p { margin: 0; font-size: 14px; color: #fff; font-weight: 600; }
-    .sidebar-user-info span { font-size: 12px; color: #64748b; }
-    .logout-btn { margin-left: auto; color: #ef4444; font-size: 16px; transition: 0.2s; }
-    .logout-btn:hover { color: #b91c1c; }
+    .sidebar-profile { margin-top: auto; display: flex; align-items: center; gap: 14px; padding-top: 24px; border-top: 1px solid var(--border); }
+    .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #a855f7); display: grid; place-items: center; font-weight: 700; font-size: 18px; }
+    .profile-info p { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .profile-info span { font-size: 12px; color: var(--text-muted); }
+    .logout { margin-left: auto; color: #ef4444; font-size: 18px; transition: 0.2s; }
+    .logout:hover { transform: translateX(3px); }
 
-    /* ============ MAIN CONTENT ============ */
-    .main { margin-left: 280px; padding: 32px 40px; flex: 1; width: calc(100% - 280px); }
-    
+    /* ==== MAIN ==== */
+    .main { 
+      margin-left: 320px; 
+      padding: 40px 40px 40px 20px; 
+      width: calc(100% - 320px); 
+      max-width: 1400px;
+    }
+
     /* Top Bar */
-    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-    .lang-select { padding: 8px 16px; border-radius: 30px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13px; cursor: pointer; outline: none; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-    .notif-btn { position: relative; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); cursor: pointer; color: var(--muted); font-size: 18px; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-    .notif-btn:hover { color: var(--navy); border-color: var(--navy); }
-    .notif-badge { position: absolute; top: -2px; right: -2px; background: #ef4444; color: white; font-size: 10px; font-weight: 800; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #fff; }
-
-    /* Greeting Section */
-    .greeting { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: var(--radius); padding: 40px; position: relative; overflow: hidden; box-shadow: 0 20px 40px rgba(15,23,42,0.15); margin-bottom: 32px; }
-    .greeting::before { content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%); border-radius: 50%; }
-    .greeting h1 { margin: 0 0 10px; font: 800 32px "Manrope", sans-serif; position: relative; z-index: 1; }
-    .greeting p { margin: 0; color: #94a3b8; font-size: 16px; position: relative; z-index: 1; }
-
-    /* Bento Grid Layout */
-    .grid-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 48px; }
+    .page-title { font-family: "Plus Jakarta Sans", sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+    .top-actions { display: flex; align-items: center; gap: 20px; }
     
-    /* Blocks */
-    .block { background: var(--surface); border-radius: var(--radius); padding: 32px; border: 1px solid var(--line); box-shadow: var(--shadow); }
-    .block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .block-title { font: 800 20px "Manrope", sans-serif; color: var(--navy); margin: 0; }
+    .lang-select { 
+      background: var(--surface); border: 1px solid var(--border); color: white;
+      padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; outline: none; cursor: pointer;
+    }
+    .lang-select option { background: var(--bg); color: white; }
+    
+    .notif-btn { 
+      width: 44px; height: 44px; border-radius: 12px; 
+      background: var(--surface); border: 1px solid var(--border); color: white;
+      display: grid; place-items: center; cursor: pointer; position: relative; transition: 0.3s;
+    }
+    .notif-btn:hover { background: var(--surface-hover); }
+    .notif-dot { position: absolute; top: 12px; right: 14px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 10px #ef4444; }
 
-    /* Premium Course Cards */
-    .course-card { display: flex; justify-content: space-between; align-items: center; padding: 24px; border-radius: 16px; background: #f8fafc; border: 1px solid var(--line); margin-bottom: 16px; transition: 0.3s; position: relative; overflow: hidden; }
-    .course-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(15,23,42,0.08); border-color: var(--blue); background: #fff; }
-    .course-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--blue); border-radius: 16px 0 0 16px; }
-    .course-info h3 { margin: 0 0 6px; font: 800 20px "Manrope", sans-serif; color: var(--navy); }
-    .course-code { display: inline-block; padding: 4px 10px; background: var(--blue-soft); color: var(--blue); border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; }
-    .course-teacher { color: var(--muted); font-size: 14px; margin-top: 8px; display: flex; align-items: center; gap: 8px; }
-    .btn-enter-course { padding: 10px 24px; background: var(--navy); color: white; border-radius: 10px; font-weight: 700; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-enter-course:hover { background: var(--blue); }
+    /* Greeting */
+    .greeting-wrapper { margin-bottom: 40px; }
+    .greeting-title { font-family: "Plus Jakarta Sans", sans-serif; font-size: 40px; font-weight: 700; line-height: 1.2; margin-bottom: 8px; }
+    .greeting-title span { background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .greeting-sub { font-size: 16px; color: var(--text-muted); }
+
+    /* Grid Layout */
+    .grid { display: grid; grid-template-columns: 1fr 380px; gap: 32px; }
+    
+    /* Panels (Glassmorphism) */
+    .glass-panel { 
+      background: var(--surface); 
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .panel-title { font-family: "Plus Jakarta Sans", sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+    .panel-title i { color: var(--accent); font-size: 18px; background: rgba(99, 102, 241, 0.1); padding: 10px; border-radius: 10px; }
+
+    /* Course Cards */
+    .course-card { 
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface-hover); 
+      border: 1px solid var(--border); 
+      padding: 24px; border-radius: 16px; margin-bottom: 16px;
+      transition: 0.3s;
+    }
+    .course-card:hover { transform: translateY(-4px); border-color: rgba(99, 102, 241, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    
+    .course-icon { width: 56px; height: 56px; border-radius: 14px; background: rgba(99, 102, 241, 0.15); color: #818cf8; display: grid; place-items: center; font-size: 24px; margin-right: 20px; }
+    .course-details { flex: 1; }
+    .course-details h3 { font-family: "Plus Jakarta Sans", sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .course-details p { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .course-code { font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 8px; display: inline-block; }
+
+    .btn-enter { 
+      padding: 12px 24px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      font-weight: 600; font-size: 14px; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .course-card:hover .btn-enter { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+
+    /* Right Column Widgets */
+    .right-col { display: flex; flex-direction: column; gap: 32px; }
+
+    .stat-box { display: flex; align-items: center; gap: 16px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 20px; border-radius: 16px; }
+    .stat-icon { width: 44px; height: 44px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); color: var(--success); display: grid; place-items: center; font-size: 18px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+    .stat-info h4 { font-size: 20px; font-weight: 700; font-family: "Plus Jakarta Sans", sans-serif; }
+    .stat-info p { font-size: 13px; color: var(--text-muted); }
 
     /* Announcements */
-    .ann-item { display: flex; gap: 16px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
-    .ann-item:last-child { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
-    .ann-icon { width: 48px; height: 48px; border-radius: 12px; background: #eff6ff; color: var(--blue); display: grid; place-items: center; font-size: 20px; flex-shrink: 0; }
-    .ann-content h4 { margin: 0 0 6px; font-size: 16px; color: var(--navy); }
-    .ann-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-    .ann-text { margin: 0; font-size: 14px; color: #475569; line-height: 1.6; }
+    .ann-item { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .ann-item:last-child { border: none; margin-bottom: 0; padding-bottom: 0; }
+    .ann-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .ann-tag { font-size: 10px; font-weight: 700; color: #f472b6; background: rgba(244, 114, 182, 0.1); padding: 4px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .ann-date { font-size: 12px; color: var(--text-muted); }
+    .ann-item h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .ann-item p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
 
-    @media (max-width: 1024px) {
-      .grid-layout { grid-template-columns: 1fr; }
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
-      .sidebar { transform: translateX(-100%); transition: 0.3s; z-index: 1000; }
-      .sidebar.open { transform: translateX(0); }
+      .sidebar { transform: translateX(-100%); transition: 0.3s; }
       .main { margin-left: 0; width: 100%; padding: 20px; }
-      .course-card { flex-direction: column; align-items: flex-start; gap: 20px; }
-      .btn-enter-course { width: 100%; justify-content: center; }
     }
   </style>
 </head>
@@ -95,23 +178,29 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark"><i class="fa-solid fa-book-open"></i></div>
-      <div class="brand-name"><%= t.portal_title %></div>
+      <div class="brand-icon"><i class="fa-solid fa-layer-group"></i></div>
+      <div class="brand-name">LuxMind</div>
     </div>
     
-    <ul class="nav-list">
-      <li><a href="/dashboard" class="nav-link active"><i class="fa-solid fa-house"></i> <%= t.nav.home %></a></li>
-      <li><a href="#" class="nav-link"><i class="fa-solid fa-graduation-cap"></i> <%= t.nav.courses %></a></li>
-      <li><a href="#" class="nav-link"><i class="fa-solid fa-bullhorn"></i> <%= t.nav.announcements %></a></li>
-    </ul>
+    <div class="nav-section">
+      <div class="nav-label">Menu</div>
+      <a href="/dashboard" class="nav-link active"><i class="fa-solid fa-grid-2"></i> Dashboard</a>
+      <a href="#" class="nav-link"><i class="fa-solid fa-book"></i> My Courses</a>
+      <a href="#" class="nav-link"><i class="fa-solid fa-bullhorn"></i> Announcements</a>
+    </div>
 
-    <div class="sidebar-user">
-      <div class="sidebar-avatar"><%= user.full_name.charAt(0) %></div>
-      <div class="sidebar-user-info">
+    <div class="nav-section">
+      <div class="nav-label">Account</div>
+      <a href="#" class="nav-link"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+
+    <div class="sidebar-profile">
+      <div class="avatar"><%= user.full_name.charAt(0) %></div>
+      <div class="profile-info">
         <p><%= user.full_name %></p>
         <span><%= user.role %></span>
       </div>
-      <a href="/logout" class="logout-btn" title="<%= t.nav.logout %>"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+      <a href="/logout" class="logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
   </aside>
 
@@ -119,81 +208,85 @@
   <main class="main">
     
     <!-- Top Bar -->
-    <header class="topbar">
-      <h2 style="margin:0; font:800 24px 'Manrope'; color:var(--navy);">Dashboard</h2>
-      <div style="display:flex; align-items:center; gap:16px;">
+    <header class="top-bar">
+      <div class="page-title">Overview</div>
+      <div class="top-actions">
         <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
-          <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 English</option>
-          <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 Français</option>
-          <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 Kirundi</option>
-          <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 Kiswahili</option>
+          <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 EN</option>
+          <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 FR</option>
+          <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 RN</option>
+          <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 SW</option>
         </select>
         <button class="notif-btn">
           <i class="fa-regular fa-bell"></i>
-          <span class="notif-badge">3</span>
+          <div class="notif-dot"></div>
         </button>
       </div>
     </header>
 
     <!-- Greeting -->
-    <div class="greeting">
-      <h1><%= greeting %>, <%= user.full_name.split(' ')[0] %>! 👋</h1>
-      <p>You have classes to catch up on. Let's make today productive.</p>
+    <div class="greeting-wrapper">
+      <h1 class="greeting-title"><%= greeting %>, <br><span><%= user.full_name.split(' ')[0] %></span></h1>
+      <p class="greeting-sub">Welcome back to your learning space. Here is what's happening today.</p>
     </div>
 
-    <!-- Bento Grid -->
-    <div class="grid-layout">
+    <!-- Grid Layout -->
+    <div class="grid">
       
       <!-- Left Column: Courses -->
-      <div class="block">
-        <div class="block-header">
-          <h3 class="block-title"><%= t.dash.course_overview %></h3>
-        </div>
+      <div class="glass-panel">
+        <h3 class="panel-title">Active Courses <i class="fa-solid fa-graduation-cap"></i></h3>
         
         <% if (courses.length === 0) { %>
-          <p style="color: var(--muted); margin: 0;"><%= t.dash.no_courses %></p>
+          <p style="color: var(--text-muted);"><%= t.dash.no_courses %></p>
         <% } else { %>
           <% courses.forEach(c => { %>
             <a href="/course/<%= c.id %>" class="course-card">
-              <div class="course-info">
-                <span class="course-code"><%= c.code %></span>
-                <h3><%= c.title %></h3>
-                <div class="course-teacher"><i class="fa-solid fa-user-tie"></i> <%= c.teacher_name || 'TBA' %></div>
+              <div style="display:flex; align-items:center;">
+                <div class="course-icon"><i class="fa-solid fa-book-open"></i></div>
+                <div class="course-details">
+                  <span class="course-code"><%= c.code %></span>
+                  <h3><%= c.title %></h3>
+                  <p><i class="fa-regular fa-user"></i> <%= c.teacher_name || 'TBA' %></p>
+                </div>
               </div>
-              <span class="btn-enter-course">Enter Course <i class="fa-solid fa-arrow-right"></i></span>
+              <div class="btn-enter">
+                Enter <i class="fa-solid fa-arrow-right"></i>
+              </div>
             </a>
           <% }); %>
         <% } %>
       </div>
 
-      <!-- Right Column: Announcements & Online Users -->
-      <div style="display:flex; flex-direction:column; gap:24px;">
+      <!-- Right Column -->
+      <div class="right-col">
         
-        <!-- Online Users -->
-        <div class="block" style="padding: 24px;">
-          <h3 class="block-title" style="font-size: 16px; margin-bottom: 16px;"><%= t.dash.online %></h3>
-          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:var(--muted);">
-            <div style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 10px #10b981;"></div>
-            <strong><%= onlineUsers %></strong> users online
+        <!-- Online Status -->
+        <div class="glass-panel" style="padding: 24px;">
+          <div class="stat-box">
+            <div class="stat-icon"><i class="fa-solid fa-signal"></i></div>
+            <div class="stat-info">
+              <h4><%= onlineUsers %> Online</h4>
+              <p>Active students right now</p>
+            </div>
           </div>
         </div>
 
         <!-- Announcements -->
-        <div class="block">
-          <div class="block-header">
-            <h3 class="block-title" style="font-size: 18px;"><%= t.dash.site_ann %></h3>
-          </div>
+        <div class="glass-panel">
+          <h3 class="panel-title" style="font-size: 18px;">Campus Feed <i class="fa-solid fa-bolt"></i></h3>
+          
           <% if (announcements.length === 0) { %>
-            <p style="color: var(--muted); margin: 0;"><%= t.dash.no_ann %></p>
+            <p style="color: var(--text-muted); font-size: 14px;"><%= t.dash.no_ann %></p>
           <% } else { %>
             <% announcements.slice(0, 3).forEach(a => { %>
               <div class="ann-item">
-                <div class="ann-icon"><i class="fa-solid fa-bullhorn"></i></div>
-                <div class="ann-content">
-                  <h4><%= a.title %></h4>
-                  <div class="ann-meta">by <strong><%= a.author_name || 'System' %></strong></div>
-                  <p class="ann-text"><%= a.message %></p>
+                <div class="ann-meta">
+                  <span class="ann-tag">Update</span>
+                  <span class="ann-date"><%= new Date(a.created_at).toLocaleDateString('en-GB', {month: 'short', day: 'numeric'}) %></span>
                 </div>
+                <h4><%= a.title %></h4>
+                <p><%= a.message %></p>
               </div>
             <% }); %>
           <% } %>
