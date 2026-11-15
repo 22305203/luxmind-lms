@@ -38,12 +38,13 @@ app.post('/login', async (req, res) => {
     res.status(500).send("Database Error: " + err.message);
   }
 });
-// LMS DASHBOARD
+// LMS HOME DASHBOARD
 app.get('/dashboard', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   try {
-    const result = await pool.query(`
-      SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name
+    // 1. Fetch courses for this user
+    const courseRes = await pool.query(`
+      SELECT c.id, c.code, c.title, u.full_name AS teacher_name
       FROM courses c
       JOIN enrollments e ON e.course_id = c.id
       LEFT JOIN course_sections s ON s.course_id = c.id
@@ -51,9 +52,23 @@ app.get('/dashboard', async (req, res) => {
       WHERE e.user_id = $1
     `, [req.session.user.id]);
 
+    // 2. Fetch site announcements
+    const annRes = await pool.query(`
+      SELECT a.*, u.full_name AS author_name 
+      FROM lms_announcements a
+      LEFT JOIN users u ON u.id = a.created_by
+      ORDER BY a.created_at DESC
+    `);
+
+    // 3. Fetch online users (simple mock: users who logged in recently, or just a static number for now)
+    // In a real system, you'd track last_activity timestamps.
+    const onlineUsers = 3; 
+
     res.render('lms-dashboard', { 
       user: req.session.user, 
-      courses: result.rows 
+      courses: courseRes.rows,
+      announcements: annRes.rows,
+      onlineUsers: onlineUsers
     });
   } catch (err) {
     res.status(500).send("Dashboard Error: " + err.message);
