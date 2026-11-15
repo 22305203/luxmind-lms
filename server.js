@@ -43,12 +43,11 @@ const translations = {
     greeting: { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening" },
     nav: { home: "Home", courses: "My Courses", announcements: "Site announcements", logout: "Log out" },
     dash: { online: "Online Users", site_ann: "Site announcements", course_overview: "Course Overview", no_courses: "You are not enrolled in any courses.", no_ann: "No announcements yet.", credits: "Credits" },
-    // Course Page Translations
-    course: {
-      home: "Course Home", announcements: "Announcements", syllabus: "Syllabus", materials: "Course Materials",
-      assignments: "Assignments", quizzes: "Quizzes", forums: "Discussion Forums", grades: "My Grades",
-      attendance: "My Attendance", evaluation: "Course Evaluation", instructor: "Instructor", upcoming: "Upcoming Events",
-      submit: "Submit Work", start: "Start Quiz", view: "View / Download", no_mat: "No materials uploaded yet.", no_assign: "No assignments yet.", due: "Due", points: "Points", time_limit: "Time Limit"
+    course: { home: "Course Home", announcements: "Announcements", syllabus: "Syllabus", materials: "Course Materials", assignments: "Assignments", quizzes: "Quizzes", forums: "Discussion Forums", grades: "My Grades", attendance: "My Attendance", evaluation: "Course Evaluation", instructor: "Instructor", upcoming: "Upcoming Events", submit: "Submit Work", start: "Start Quiz", view: "View / Download", no_mat: "No materials uploaded yet.", no_assign: "No assignments yet.", due: "Due", points: "Points", time_limit: "Time Limit" },
+    teacher: {
+      portal_title: "TEACHER PORTAL",
+      nav: { dashboard: "Dashboard", courses: "My Courses", schedule: "Schedule", grading: "Grading Center", messages: "Messages", global_ann: "Global Announcements", leave: "Leave Requests", settings: "Settings" },
+      dash: { title: "Teacher Command Center", welcome: "Welcome back", ungraded: "Submissions to Grade", at_risk: "At-Risk Students", unread: "Unread Messages", attention: "Needs Attention", activity: "Campus Activity", online: "students online", live: "Live System", courses_teach: "Courses I Teach", students: "Students Enrolled", manage: "Manage Course", grading_across: "Across all active courses", attendance_below: "Attendance below 70%", from_students: "From students and admin" }
     }
   },
   fr: {
@@ -56,11 +55,11 @@ const translations = {
     greeting: { morning: "Bonjour", afternoon: "Bon après-midi", evening: "Bonsoir" },
     nav: { home: "Accueil", courses: "Mes Cours", announcements: "Annonces du site", logout: "Déconnexion" },
     dash: { online: "Utilisateurs en ligne", site_ann: "Annonces du site", course_overview: "Aperçu des cours", no_courses: "Vous n'êtes inscrit à aucun cours.", no_ann: "Aucune annonce pour le moment.", credits: "Crédits" },
-    course: {
-      home: "Accueil du cours", announcements: "Annonces", syllabus: "Programme", materials: "Supports de cours",
-      assignments: "Devoirs", quizzes: "Quiz", forums: "Forums de discussion", grades: "Mes Notes",
-      attendance: "Ma Présence", evaluation: "Évaluation du cours", instructor: "Instructeur", upcoming: "Événements à venir",
-      submit: "Soumettre", start: "Commencer le Quiz", view: "Voir / Télécharger", no_mat: "Aucun support pour le moment.", no_assign: "Aucun devoir.", due: "Échéance", points: "Points", time_limit: "Temps limite"
+    course: { home: "Accueil du cours", announcements: "Annonces", syllabus: "Programme", materials: "Supports de cours", assignments: "Devoirs", quizzes: "Quiz", forums: "Forums de discussion", grades: "Mes Notes", attendance: "Ma Présence", evaluation: "Évaluation du cours", instructor: "Instructeur", upcoming: "Événements à venir", submit: "Soumettre", start: "Commencer le Quiz", view: "Voir / Télécharger", no_mat: "Aucun support pour le moment.", no_assign: "Aucun devoir.", due: "Échéance", points: "Points", time_limit: "Temps limite" },
+    teacher: {
+      portal_title: "PORTAIL ENSEIGNANT",
+      nav: { dashboard: "Tableau de bord", courses: "Mes Cours", schedule: "Emploi du temps", grading: "Centre de notation", messages: "Messages", global_ann: "Annonces globales", leave: "Demandes de congé", settings: "Paramètres" },
+      dash: { title: "Centre de commande", welcome: "Bon retour", ungraded: "Copies à noter", at_risk: "Étudiants à risque", unread: "Messages non lus", attention: "Attention requise", activity: "Activité du campus", online: "étudiants en ligne", live: "Système en direct", courses_teach: "Cours que j'enseigne", students: "Étudiants inscrits", manage: "Gérer le cours", grading_across: "Dans tous les cours actifs", attendance_below: "Présence inférieure à 70%", from_students: "Des étudiants et de l'admin" }
     }
   },
   rn: {
@@ -68,11 +67,11 @@ const translations = {
     greeting: { morning: "Mwaramutse", afternoon: "Mwiriwe", evening: "Mwiriwe" },
     nav: { home: "Ahabanza", courses: "Amasomo Yanje", announcements: "Amatangazo", logout: "Sohoka" },
     dash: { online: "Abakoresha kumurongo", site_ann: "Amatangazo", course_overview: "Incamake y'amasomo", no_courses: "Ntamasomo wiyandikishije.", no_ann: "Nta matangazo arahari.", credits: "Amanota" },
-    course: {
-      home: "Ahabanza h'isomo", announcements: "Amatangazo", syllabus: "Gahunda y'isomo", materials: "Ibikoresho vy'isomo",
-      assignments: "Ibikorwa", quizzes: "Ibibazo", forums: "Ibiganiro", grades: "Amanota yanje",
-      attendance: "Uko naje kw'isomo", evaluation: "Gusuzuma isomo", instructor: "Umwarimu", upcoming: "Ibikorwa biri imbere",
-      submit: "Tanga", start: "Tangira", view: "Raba / Kurura", no_mat: "Nta bikoresho birashirwaho.", no_assign: "Nta bikorwa birashirwaho.", due: "Iherezo", points: "Amanota", time_limit: "Igihe ntarengwa"
+    course: { home: "Ahabanza h'isomo", announcements: "Amatangazo", syllabus: "Gahunda y'isomo", materials: "Ibikoresho vy'isomo", assignments: "Ibikorwa", quizzes: "Ibibazo", forums: "Ibiganiro", grades: "Amanota yanje", attendance: "Uko naje kw'isomo", evaluation: "Gusuzuma isomo", instructor: "Umwarimu", upcoming: "Ibikorwa biri imbere", submit: "Tanga", start: "Tangira", view: "Raba / Kurura", no_mat: "Nta bikoresho birashirwaho.", no_assign: "Nta bikorwa birashirwaho.", due: "Iherezo", points: "Amanota", time_limit: "Igihe ntarengwa" },
+    teacher: {
+      portal_title: "URUGO RW'UMWARIMU",
+      nav: { dashboard: "Ahabanza", courses: "Amasomo Ngana", schedule: "Gahunda", grading: "Aho Gutanga Amanota", messages: "Ubutumwa", global_ann: "Amatangazo Rusangi", leave: "Gusaba Uruhusho", settings: "Igenamiterere" },
+      dash: { title: "Icyumba c'Umwarimu", welcome: "Murakaza neza", ungraded: "Ivyo Kwiga Bitegereje", at_risk: "Abanyeshure mu Kaga", unread: "Ubutumwa Butarasomwa", attention: "Bikenera Ivyiyumviro", activity: "Ibikorwa ku Kigo", online: "abanyeshure kumurongo", live: "Sisitemu irakora", courses_teach: "Amasomo Ndishikira", students: "Abanyeshure Biyandikishije", manage: "Gucunga Isomo", grading_across: "Mu masomo yose", attendance_below: "Ukwiye kw'isomo munsi ya 70%", from_students: "Uva ku banyeshure no kuri admin" }
     }
   },
   sw: {
@@ -80,11 +79,11 @@ const translations = {
     greeting: { morning: "Habari za asubuhi", afternoon: "Habari za mchana", evening: "Habari za jioni" },
     nav: { home: "Nyumbani", courses: "Kozi Zangu", announcements: "Matangazo", logout: "Toka" },
     dash: { online: "Watumiaji Mtandaoni", site_ann: "Matangazo", course_overview: "Muhtasari wa Kozi", no_courses: "Haujasajiliwa katika kozi yoyote.", no_ann: "Hakuna matangazo bado.", credits: "Mikopo" },
-    course: {
-      home: "Nyumbani kwa Kozi", announcements: "Matangazo", syllabus: "Mwongozo", materials: "Vifaa vya Kozi",
-      assignments: "Kazi", quizzes: "Maswali", forums: "Majadiliano", grades: "Alama Zangu",
-      attendance: "Mahudhurio Yangu", evaluation: "Tathmini ya Kozi", instructor: "Mwalimu", upcoming: "Matukio Yajayo",
-      submit: "Wasilisha", start: "Anza", view: "Tazama / Pakua", no_mat: "Hakuna vifaa bado.", no_assign: "Hakuna kazi bado.", due: "Mwisho", points: "Alama", time_limit: "Muda"
+    course: { home: "Nyumbani kwa Kozi", announcements: "Matangazo", syllabus: "Mwongozo", materials: "Vifaa vya Kozi", assignments: "Kazi", quizzes: "Maswali", forums: "Majadiliano", grades: "Alama Zangu", attendance: "Mahudhurio Yangu", evaluation: "Tathmini ya Kozi", instructor: "Mwalimu", upcoming: "Matukio Yajayo", submit: "Wasilisha", start: "Anza", view: "Tazama / Pakua", no_mat: "Hakuna vifaa bado.", no_assign: "Hakuna kazi bado.", due: "Mwisho", points: "Alama", time_limit: "Muda" },
+    teacher: {
+      portal_title: "PORTAL YA MWALIMU",
+      nav: { dashboard: "Dashibodi", courses: "Kozi Zangu", schedule: "Ratiba", grading: "Kituo cha Kuweka Alama", messages: "Ujumbe", global_ann: "Matangazo ya Jumla", leave: "Maombi ya Likizo", settings: "Mipangilio" },
+      dash: { title: "Kituo cha Mwalimu", welcome: "Karibu tena", ungraded: "Kazi za Kuwekwa Alama", at_risk: "Wanafunzi Hatarini", unread: "Ujumbe Ambao Haujasomwa", attention: "Inahitaji Kuzingatiwa", activity: "Shughuli za Kampasi", online: "wanafunzi mtandaoni", live: "Mfumo Hai", courses_teach: "Kozi Ninazofundisha", students: "Wanafunzi Walioandikishwa", manage: "Dhibiti Kozi", grading_across: "Katika kozi zote hai", attendance_below: "Mahudhurio chini ya 70%", from_students: "Kutoka kwa wanafunzi na admin" }
     }
   }
 };
