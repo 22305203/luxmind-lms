@@ -15,8 +15,8 @@ app.set('trust proxy', 1);
 // ============================================
 // CRITICAL: Remove /rest/v1/ from the URL!
 const supabase = createClient(
-  'https://fclhdbppskmjlmbhtoug.supabase.co', 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjbGhkYnBwc2ttamxtYmh0b3VnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTc4OTI4NiwiZXhwIjoyMTA3MzY1Mjg2fQ.SbgaJj-DTR43ggyIoim_-Yl6uyI8IVbI0s20V7fwhas'
+  'https://dxprjnjdkzykqnawhucf.supabase.co', 
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4cHJqbmpka3p5a3FuYXdodWNmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDY5NTc3NiwiZXhwIjoyMTEwMjcxNzc2fQ.TxLB4kIYynPPSztEkEPDJR2aDgE7G90WPbgaiG_hx4I'
 );
 
 // Multer setup for file uploads (Max 10MB)
@@ -25,8 +25,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // ============================================
 // --- DATABASE CONFIGURATION ---
 // ============================================
+// 3. Setup Database (STILL USING SIS DATABASE FOR CONNECTION)
 const pool = new Pool({
-  user: 'postgres.fclhdbppskmjlmbhtoug',
+  user: 'postgres.fclhdbppskmjlmbhtoug', // <-- Keep this!
   password: 'LuxMindAdmin2026',
   host: 'aws-1-eu-central-1.pooler.supabase.com',
   port: 6543,
