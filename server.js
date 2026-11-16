@@ -151,7 +151,6 @@ app.get('/dashboard', async (req, res) => {
         WHERE s.teacher_id = $1
       `, [req.session.user.id]);
 
-      // Mock stats for the dashboard widgets
       const ungradedCount = 14; 
       const pendingMessages = 3;
       const onlineUsers = 5;
@@ -164,8 +163,6 @@ app.get('/dashboard', async (req, res) => {
         onlineUsers
       });
     } else {
-      // FETCH STUDENT DATA (Your existing logic)
-         } else {
       // FETCH STUDENT DATA
       const courseRes = await pool.query(`
         SELECT c.id, c.code, c.title, u.full_name AS teacher_name
@@ -197,7 +194,7 @@ app.get('/dashboard', async (req, res) => {
         courses: courseRes.rows,
         announcements: annRes.rows,
         onlineUsers: 3,
-        unreadCount: unreadCount // <--- Pass to the UI
+        unreadCount: unreadCount
       });
     }
   } catch (err) {
@@ -205,7 +202,6 @@ app.get('/dashboard', async (req, res) => {
   }
 });
 
-// COURSE CONTENT PAGE (Multi-tab)
 // COURSE CONTENT PAGE (Multi-tab)
 app.get('/course/:id', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
@@ -249,7 +245,7 @@ app.get('/course/:id', async (req, res) => {
       const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
       quizzes = r.rows;
     }
-      if (view === 'announcements') {
+    if (view === 'announcements') {
        // IF STUDENT OPENS THE PAGE, CLEAR THE RED BELL
        if (!isTeacher) {
          await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]);
@@ -258,7 +254,7 @@ app.get('/course/:id', async (req, res) => {
        announcements = r.rows;
     }
     if (view === 'materials') {
-      const m = await pool.query(`SELECT * FROM lms_materials WHERE section_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]);
+      const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]);
       materials = m.rows;
     }
     if (view === 'students' && isTeacher) {
@@ -297,14 +293,13 @@ app.get('/course/:id', async (req, res) => {
       isTeacher,
       course: course,
       view: view,
-      assignments, quizzes, grades, announcements, materials, students
+      assignments, quizzes, grades, announcements, materials, students,
+      unreadCount: 0 
     });
   } catch (err) {
     res.status(500).send("Course Error: " + err.message);
   }
 });
-
-
 
 // POST NEW ANNOUNCEMENT (Teacher Only)
 app.post('/course/:id/announcements', async (req, res) => {
@@ -333,15 +328,10 @@ app.post('/course/:id/announcements', async (req, res) => {
   }
 });
 
-
-
-
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/login');
 });
-
-
 
 app.get('/debug-teacher', async (req, res) => {
   if (!req.session.user) return res.send('You are not logged in. Please log in first.');
