@@ -360,9 +360,115 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- OTHER VIEWS PLACEHOLDER (Announcements, Assignments, etc.) -->
+        <!-- ASSIGNMENTS VIEW -->
         <!-- ============================================== -->
-        <% if (view !== 'materials' && view !== 'dashboard') { %>
+        <% if (view === 'assignments') { %>
+          <div class="section-header">
+            <h1 class="section-title">Assignments</h1>
+          </div>
+
+          <!-- TEACHER CREATE ASSIGNMENT FORM -->
+          <% if (isTeacher) { %>
+            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px;">
+              <h3 style="font-size: 18px; color: var(--primary); margin-bottom: 24px;"><i class="fa-solid fa-plus"></i> Create New Assignment</h3>
+              <form action="/course/<%= course.id %>/assignments" method="POST">
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                  <input type="text" name="title" class="form-input" placeholder="Assignment Title" required>
+                  <input type="datetime-local" name="due_date" class="form-input" required>
+                  <input type="number" name="max_points" class="form-input" placeholder="Max Points (e.g. 100)" required>
+                </div>
+                <textarea name="instructions" class="form-input" rows="3" placeholder="Instructions for students..." style="margin-bottom: 16px;"></textarea>
+                <div style="display: flex; align-items: center; gap: 24px;">
+                  <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer;">
+                    <input type="checkbox" name="is_published" style="width: 18px; height: 18px; accent-color: var(--primary);"> Publish immediately to students
+                  </label>
+                  <button type="submit" class="btn" style="padding: 10px 24px;"><i class="fa-solid fa-paper-plane"></i> Create Assignment</button>
+                </div>
+              </form>
+            </div>
+          <% } %>
+
+          <!-- ASSIGNMENTS LIST -->
+          <% if (assignments.length === 0) { %>
+             <div style="text-align: center; padding: 60px; color: var(--text-muted); background: var(--bg-surface); border-radius: 16px; border: 1px dashed var(--border);">
+               <i class="fa-solid fa-file-pen" style="font-size: 48px; color: var(--border); margin-bottom: 16px;"></i>
+               <h3>No assignments yet.</h3>
+               <p>There are no assignments for this course currently.</p>
+             </div>
+          <% } else { %>
+            <div class="material-grid">
+              <% assignments.forEach(a => { %>
+                <div class="material-card">
+                  <div class="mat-icon-wrapper">
+                    <div class="mat-icon" style="color: #f59e0b; background: rgba(245,158,11,0.1);"><i class="fa-solid fa-file-pen"></i></div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                      <% if (isTeacher && !a.is_published) { %>
+                        <span style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase;">Hidden</span>
+                      <% } %>
+                      <span class="mat-week"><%= a.max_points %> Pts</span>
+                    </div>
+                  </div>
+                  
+                  <h4 class="mat-title"><%= a.title %></h4>
+                  <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;"><%= a.instructions || 'No instructions provided.' %></p>
+                  <div class="mat-meta" style="margin-bottom: 16px;">
+                    <i class="fa-regular fa-clock"></i> Due: <%= new Date(a.due_date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %>
+                  </div>
+
+                  <!-- TEACHER ACTIONS -->
+                  <% if (isTeacher) { %>
+                    <div style="background: var(--bg-body); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 600; text-align: center;">
+                      <i class="fa-solid fa-users"></i> <%= a.submission_count %> Submissions
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                      <a href="?view=grades" class="btn btn-outline" style="justify-content: center;"><i class="fa-solid fa-check-double"></i> Grade</a>
+                      <form action="/course/<%= course.id %>/assignments/<%= a.id %>/toggle" method="POST">
+                        <button type="submit" class="btn" style="width: 100%; justify-content: center; background: <%= a.is_published ? '#f59e0b' : '#10b981' %>; color: white; border: none;">
+                          <i class="fa-solid <%= a.is_published ? 'fa-eye-slash' : 'fa-eye' %>"></i> <%= a.is_published ? 'Hide' : 'Publish' %>
+                        </button>
+                      </form>
+                    </div>
+
+                  <!-- STUDENT ACTIONS -->
+                  <% } else { %>
+                    <% if (a.submission_id) { %>
+                      <!-- Already Submitted -->
+                      <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); color: #059669; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 700; text-align: center;">
+                        <i class="fa-solid fa-circle-check"></i> Submitted on <%= new Date(a.submitted_at).toLocaleDateString() %>
+                      </div>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <a href="<%= a.submitted_file %>" target="_blank" class="btn-action btn-view"><i class="fa-solid fa-eye"></i> My File</a>
+                        <% if (a.grade != null) { %>
+                          <div class="btn-action" style="background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary);">
+                            Grade: <%= a.grade %>/<%= a.max_points %>
+                          </div>
+                        <% } else { %>
+                          <div class="btn-action" style="background: #f8fafc; color: #94a3b8; border: 1px solid var(--border);">Pending Grade</div>
+                        <% } %>
+                      </div>
+                    <% } else { %>
+                      <!-- Not Submitted Yet -->
+                      <form action="/course/<%= course.id %>/assignments/<%= a.id %>/submit" method="POST" enctype="multipart/form-data">
+                        <div class="upload-zone" style="padding: 20px; margin-bottom: 12px;">
+                          <input type="file" name="submission" required accept=".pdf,.doc,.docx,.zip">
+                          <i class="fa-solid fa-cloud-arrow-up upload-icon" style="font-size: 24px; margin-bottom: 8px;"></i>
+                          <h3 style="font-size: 14px;">Upload Work</h3>
+                          <p style="font-size: 11px;">PDF, DOCX, ZIP</p>
+                        </div>
+                        <button type="submit" class="btn" style="width: 100%; justify-content: center;"><i class="fa-solid fa-upload"></i> Submit Assignment</button>
+                      </form>
+                    <% } %>
+                  <% } %>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
+        <% } %>
+
+        <!-- ============================================== -->
+        <!-- OTHER VIEWS PLACEHOLDER (Announcements, Quizzes, Grades, etc.) -->
+        <!-- ============================================== -->
+        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments') { %>
           <div class="section-header">
             <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %></h1>
           </div>
