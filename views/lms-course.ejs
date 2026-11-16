@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= course.code %> | Teacher Portal</title>
+  <title><%= course.code %> | <%= isTeacher ? 'Teacher Portal' : 'Student Portal' %></title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   
   <script>
-    // Check for saved theme preference before render to avoid flash
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -40,34 +39,14 @@
     .topbar-left { display: flex; align-items: center; gap: 16px; }
     .mobile-menu-btn { display: none; background: none; border: none; font-size: 20px; color: var(--text-main); cursor: pointer; }
     
-        .back-btn { 
-      display: inline-flex; 
-      align-items: center; 
-      gap: 8px; 
-      font-size: 13px; 
-      font-weight: 700; 
-      color: #ffffff; /* White text */
-      background: linear-gradient(135deg, #4f46e5, #0ea5e9); /* Indigo to Blue gradient */
-      padding: 10px 18px; 
-      border-radius: 10px; 
-      border: none;
-      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); /* Soft purple glow */
-      transition: all 0.3s ease; 
-    }
-    
-    .back-btn:hover { 
-      transform: translateY(-2px); /* Lifts up slightly on hover */
-      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.5);
-      color: #ffffff; 
-    }
-    .brand { display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--border); padding-left: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
     .brand-mark { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: #fff; font-size: 12px; background: linear-gradient(135deg, #4f46e5, #0ea5e9); }
     .brand-name { color: var(--text-main); font: 800 15px "Plus Jakarta Sans", sans-serif; }
 
     .topbar-right { display: flex; align-items: center; gap: 16px; }
     .lang-select { background: var(--bg-body); border: 1px solid var(--border); padding: 6px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; outline: none; color: var(--text-main); cursor: pointer; }
     
-    .icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); display: grid; place-items: center; cursor: pointer; transition: 0.2s; }
+    .icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); display: grid; place-items: center; cursor: pointer; transition: 0.2s; position: relative; }
     .icon-btn:hover { color: var(--primary); border-color: var(--primary); }
 
     .user-menu { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-main); }
@@ -94,6 +73,16 @@
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
     .section-title { font: 800 20px "Plus Jakarta Sans", sans-serif; color: var(--text-main); margin: 0; }
     
+    /* Back Button */
+    .back-btn { 
+      display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; 
+      color: #ffffff; background: linear-gradient(135deg, #4f46e5, #0ea5e9); 
+      padding: 10px 18px; border-radius: 10px; border: none;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); transition: all 0.3s ease; 
+      margin-bottom: 24px;
+    }
+    .back-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(79, 70, 229, 0.5); color: #ffffff; }
+
     /* Buttons */
     .btn { padding: 8px 16px; background: var(--primary); color: white; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
     .btn:hover { background: #4338ca; }
@@ -143,32 +132,27 @@
 </head>
 <body>
 
-  <!-- Mobile Overlay -->
   <div class="overlay" id="mobileOverlay"></div>
 
   <!-- Top Navbar -->
   <header class="topbar">
-        <div class="topbar-left">
-      <!-- HAMBURGER MENU -->
+    <div class="topbar-left">
       <button class="mobile-menu-btn" id="menuBtn"><i class="fa-solid fa-bars"></i></button>
-      
       <div class="brand">
-        <!-- Dynamic Icon -->
         <div class="brand-mark"><i class="fa-solid <%= isTeacher ? 'fa-chalkboard-user' : 'fa-book-open' %>"></i></div>
-        <!-- Dynamic Text -->
         <div class="brand-name"><%= isTeacher ? 'Teacher Portal' : 'Student Portal' %></div>
       </div>
     </div>
+    
     <div class="topbar-right">
-
-
-           <!-- Notification Bell -->
+      <!-- Notification Bell -->
       <button class="icon-btn" onclick="window.location.href='/dashboard'" title="Check Announcements">
         <i class="fa-regular fa-bell"></i>
         <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
-          <span class="notif-badge" style="position: absolute; top: 6px; right: 8px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; border: 2px solid var(--bg-surface);"></span>
+          <span style="position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; border: 2px solid var(--bg-surface);"></span>
         <% } %>
       </button>
+
       <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
         <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 EN</option>
         <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 FR</option>
@@ -191,7 +175,7 @@
   <!-- Layout Wrapper -->
   <div class="layout">
     
-    <!-- Left Sidebar (Massive Teacher Menu) -->
+    <!-- Left Sidebar -->
     <aside class="course-nav" id="sidebar">
       <div class="course-header-side">
         <span class="course-code-side"><%= course.code %></span>
@@ -224,66 +208,57 @@
       
       <!-- Middle Content Area -->
       <main class="main-content">
-      <!-- Middle Content Area -->
-      <main class="main-content">
         
-        <!-- NEW LOCATION FOR BACK BUTTON -->
-        <div style="margin-bottom: 20px;">
-          <a href="/dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
-        </div>
+        <!-- BACK BUTTON (Positioned beautifully) -->
+        <a href="/dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
 
         <!-- DASHBOARD VIEW -->
         <% if (view === 'dashboard') { %>
-        
-        <!-- DASHBOARD VIEW -->
-        <% if (view === 'dashboard') { %>
           <div class="section-header">
-            <h1 class="section-title">Teacher Workspace: <%= course.title %></h1>
+            <h1 class="section-title">Course Workspace: <%= course.title %></h1>
           </div>
           <p style="color: var(--text-muted); font-size:14px;">Welcome to your course command center. Select a tool from the sidebar to manage your class.</p>
         <% } %>
 
-             <!-- ANNOUNCEMENTS VIEW -->
-      <% if (view === 'announcements') { %>
-        <div class="section-header">
-          <h1 class="section-title">Course Announcements</h1>
-        </div>
-
-        <!-- TEACHER ONLY: Post Announcement Form -->
-        <% if (isTeacher) { %>
-          <div class="item-card" style="display: block; margin-bottom: 24px; background: var(--bg-surface); border-color: var(--primary);">
-            <h4 style="margin-bottom: 12px; color: var(--primary);"><i class="fa-solid fa-pen-to-square"></i> Post a New Announcement</h4>
-            <form action="/course/<%= course.id %>/announcements" method="POST">
-              <input type="text" name="title" placeholder="Announcement Title (e.g., Exam Moved)" required 
-                     style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit;">
-              <textarea name="message" placeholder="Type your message to the students here..." required rows="3" 
-                        style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit; resize: vertical;"></textarea>
-              <button type="submit" class="btn"><i class="fa-solid fa-paper-plane"></i> Publish Announcement</button>
-            </form>
+        <!-- ANNOUNCEMENTS VIEW -->
+        <% if (view === 'announcements') { %>
+          <div class="section-header">
+            <h1 class="section-title">Course Announcements</h1>
           </div>
-        <% } %>
 
-        <!-- List of Announcements (Visible to everyone) -->
-        <% if (announcements.length === 0) { %>
-           <p style="color:var(--text-muted); font-size: 13px;">No announcements posted yet.</p>
-        <% } else { %>
-          <% announcements.forEach(a => { %>
-            <div class="item-card" style="display:block;">
-              <h4 style="color: var(--text-main); font-size: 16px;"><%= a.title %></h4>
-              <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px; line-height: 1.6;"><%= a.message %></p>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px;">
-                <i class="fa-regular fa-clock"></i> Posted on <%= new Date(a.created_at).toLocaleString() %>
-              </div>
+          <% if (isTeacher) { %>
+            <div class="item-card" style="display: block; margin-bottom: 24px; background: var(--bg-surface); border-color: var(--primary);">
+              <h4 style="margin-bottom: 12px; color: var(--primary);"><i class="fa-solid fa-pen-to-square"></i> Post a New Announcement</h4>
+              <form action="/course/<%= course.id %>/announcements" method="POST">
+                <input type="text" name="title" placeholder="Announcement Title (e.g., Exam Moved)" required 
+                       style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit;">
+                <textarea name="message" placeholder="Type your message to the students here..." required rows="3" 
+                          style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit; resize: vertical;"></textarea>
+                <button type="submit" class="btn"><i class="fa-solid fa-paper-plane"></i> Publish Announcement</button>
+              </form>
             </div>
-          <% }); %>
+          <% } %>
+
+          <% if (announcements.length === 0) { %>
+             <p style="color:var(--text-muted); font-size: 13px;">No announcements posted yet.</p>
+          <% } else { %>
+            <% announcements.forEach(a => { %>
+              <div class="item-card" style="display:block;">
+                <h4 style="color: var(--text-main); font-size: 16px;"><%= a.title %></h4>
+                <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px; line-height: 1.6;"><%= a.message %></p>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px;">
+                  <i class="fa-regular fa-clock"></i> Posted on <%= new Date(a.created_at).toLocaleString() %>
+                </div>
+              </div>
+            <% }); %>
+          <% } %>
         <% } %>
-      <% } %>
 
         <!-- MATERIALS VIEW -->
         <% if (view === 'materials') { %>
           <div class="section-header">
             <h1 class="section-title">Course Materials</h1>
-            <button class="btn"><i class="fa-solid fa-upload"></i> Upload File</button>
+            <% if (isTeacher) { %><button class="btn"><i class="fa-solid fa-upload"></i> Upload File</button><% } %>
           </div>
           <% if (materials.length === 0) { %>
              <p style="color:var(--text-muted);">No materials uploaded yet.</p>
@@ -296,7 +271,7 @@
                 </div>
                 <div style="display:flex; gap:8px;">
                   <a href="<%= m.file_url %>" target="_blank" class="btn btn-outline"><i class="fa-solid fa-eye"></i> View</a>
-                  <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+                  <% if (isTeacher) { %><button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button><% } %>
                 </div>
               </div>
             <% }); %>
@@ -307,7 +282,7 @@
         <% if (view === 'assignments') { %>
           <div class="section-header">
             <h1 class="section-title">Assignments</h1>
-            <button class="btn"><i class="fa-solid fa-plus"></i> Create Assignment</button>
+            <% if (isTeacher) { %><button class="btn"><i class="fa-solid fa-plus"></i> Create Assignment</button><% } %>
           </div>
           <% if (assignments.length === 0) { %>
              <p style="color:var(--text-muted);">No assignments created yet.</p>
@@ -322,8 +297,12 @@
                   </div>
                 </div>
                 <div style="display:flex; gap:8px;">
-                  <button class="btn btn-outline"><i class="fa-solid fa-check-double"></i> Grade</button>
-                  <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+                  <% if (isTeacher) { %>
+                    <button class="btn btn-outline"><i class="fa-solid fa-check-double"></i> Grade</button>
+                    <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+                  <% } else { %>
+                    <button class="btn"><i class="fa-solid fa-upload"></i> Submit Work</button>
+                  <% } %>
                 </div>
               </div>
             <% }); %>
@@ -334,7 +313,7 @@
         <% if (view === 'quizzes') { %>
           <div class="section-header">
             <h1 class="section-title">Quizzes & Exams</h1>
-            <button class="btn"><i class="fa-solid fa-plus"></i> Create Quiz</button>
+            <% if (isTeacher) { %><button class="btn"><i class="fa-solid fa-plus"></i> Create Quiz</button><% } %>
           </div>
           <% if (quizzes.length === 0) { %>
              <p style="color:var(--text-muted);">No quizzes created yet.</p>
@@ -349,8 +328,12 @@
                   </div>
                 </div>
                 <div style="display:flex; gap:8px;">
-                  <button class="btn btn-outline"><i class="fa-solid fa-chart-bar"></i> Results</button>
-                  <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+                  <% if (isTeacher) { %>
+                    <button class="btn btn-outline"><i class="fa-solid fa-chart-bar"></i> Results</button>
+                    <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+                  <% } else { %>
+                    <button class="btn"><i class="fa-solid fa-play"></i> Start Quiz</button>
+                  <% } %>
                 </div>
               </div>
             <% }); %>
@@ -386,7 +369,7 @@
         <% if (view === 'grades') { %>
           <div class="section-header">
             <h1 class="section-title">Gradebook</h1>
-            <button class="btn btn-success"><i class="fa-solid fa-cloud-arrow-up"></i> Push to SIS</button>
+            <% if (isTeacher) { %><button class="btn btn-success"><i class="fa-solid fa-cloud-arrow-up"></i> Push to SIS</button><% } %>
           </div>
           <% if (grades.length === 0) { %>
              <p style="color:var(--text-muted);">No grades recorded yet.</p>
@@ -459,7 +442,6 @@
   </div>
 
   <script>
-    // Dark Mode Toggle
     const themeToggle = document.getElementById('themeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const htmlElement = document.documentElement;
@@ -480,7 +462,6 @@
       }
     });
 
-    // Mobile Menu Toggle
     const menuBtn = document.getElementById('menuBtn');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobileOverlay');
