@@ -4,16 +4,15 @@ const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 const session = require('express-session');
-const multer = require('multer'); // <--- ADDED THIS
+const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.set('trust proxy', 1);
 
 // ============================================
-// --- SUPABASE CONFIGURATION ---
+// --- SUPABASE CONFIGURATION (LMS STORAGE) ---
 // ============================================
-// CRITICAL: Remove /rest/v1/ from the URL!
 const supabase = createClient(
   'https://dxprjnjdkzykqnawhucf.supabase.co', 
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4cHJqbmpka3p5a3FuYXdodWNmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDY5NTc3NiwiZXhwIjoyMTEwMjcxNzc2fQ.TxLB4kIYynPPSztEkEPDJR2aDgE7G90WPbgaiG_hx4I'
@@ -23,11 +22,10 @@ const supabase = createClient(
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ============================================
-// --- DATABASE CONFIGURATION ---
+// --- DATABASE CONFIGURATION (SIS DB) ---
 // ============================================
-// 3. Setup Database (STILL USING SIS DATABASE FOR CONNECTION)
 const pool = new Pool({
-  user: 'postgres.fclhdbppskmjlmbhtoug', // <-- Keep this!
+  user: 'postgres.fclhdbppskmjlmbhtoug',
   password: 'LuxMindAdmin2026',
   host: 'aws-1-eu-central-1.pooler.supabase.com',
   port: 6543,
@@ -213,9 +211,18 @@ app.get('/course/:id', async (req, res) => {
        if (!isTeacher) { await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]); }
        const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]); announcements = r.rows;
     }
+    
+    // ============================================
+    // UPDATED MATERIALS LOGIC HERE (Step 2)
+    // ============================================
     if (view === 'materials') {
-      const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
+      if (isTeacher) {
+        const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
+      } else {
+        const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 AND is_published = true ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
+      }
     }
+
     if (view === 'students' && isTeacher) {
       const st = await pool.query(`SELECT u.id, u.full_name, sp.admission_number, u.email FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id WHERE e.course_id = $1`, [courseId]); students = st.rows;
     }
@@ -274,6 +281,30 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
     res.redirect(`/course/${courseId}?view=materials`);
   } catch (err) {
     res.status(500).send("Upload Error: " + err.message);
+  }
+});
+
+// ============================================
+// NEW ROUTE: TOGGLE MATERIAL VISIBILITY (Step 2)
+// ============================================
+app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id, material_id } = req.params;
+  
+  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') {
+    return res.status(403).send("Access Denied.");
+  }
+
+  try {
+    await pool.query(`
+      UPDATE lms_materials 
+      SET is_published = NOT is_published 
+      WHERE id = $1 AND course_id = $2
+    `, [material_id, id]);
+
+    res.redirect(`/course/${id}?view=materials`);
+  } catch (err) {
+    res.status(500).send("Toggle Error: " + err.message);
   }
 });
 
