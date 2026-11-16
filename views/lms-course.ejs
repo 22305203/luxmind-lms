@@ -69,6 +69,8 @@
     /* Buttons */
     .btn { padding: 8px 16px; background: var(--primary); color: white; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
     .btn:hover { background: #4338ca; }
+    .btn-outline { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--bg-body); }
 
     /* EXTREME MATERIAL CARDS */
     .material-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
@@ -110,6 +112,7 @@
 
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; display: none; opacity: 0; transition: opacity 0.3s; }
     .overlay.active { display: block; opacity: 1; }
+    
     @media (max-width: 1200px) { .right-sidebar { display: none; } }
     @media (max-width: 900px) {
       .course-nav { transform: translateX(-100%); }
@@ -119,6 +122,7 @@
       .main-content { padding: 20px; }
       .material-grid { grid-template-columns: 1fr; }
       .upload-form-grid { grid-template-columns: 1fr; }
+      .bento-grid { grid-template-columns: 1fr !important; }
     }
   </style>
 </head>
@@ -186,7 +190,94 @@
         
         <a href="/dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
 
-        <!-- MATERIALS VIEW (EXTREME UI) -->
+        <!-- ============================================== -->
+        <!-- COURSE HOME (DASHBOARD) VIEW -->
+        <!-- ============================================== -->
+        <% if (view === 'dashboard') { %>
+          <div class="section-header">
+            <h1 class="section-title">Course Home</h1>
+          </div>
+
+          <!-- HERO BANNER -->
+          <div style="background: linear-gradient(135deg, #1e1b4b, #4f46e5); border-radius: 16px; padding: 40px; color: white; margin-bottom: 32px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(79,70,229,0.3);">
+            <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 800; letter-spacing: 1px; display: inline-block; margin-bottom: 16px;"><%= course.code %></span>
+            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 12px; font-family: 'Plus Jakarta Sans';">Welcome to <%= course.title %></h1>
+            <p style="font-size: 15px; color: #c7d2fe; max-width: 600px;">Instructor: <strong><%= course.teacher_name || 'TBA' %></strong> &bull; <%= course.credits %> Credits</p>
+            <i class="fa-solid fa-graduation-cap" style="position: absolute; right: 40px; top: 50%; transform: translateY(-50%); font-size: 120px; color: rgba(255,255,255,0.05);"></i>
+          </div>
+
+          <!-- BENTO GRID -->
+          <div class="bento-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            
+            <!-- LEFT COLUMN -->
+            <div>
+              <% if (isTeacher) { %>
+                <!-- TEACHER STATS -->
+                <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px;">
+                  <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-users" style="color: var(--primary);"></i> Class Roster</h3>
+                  <div style="font-size: 36px; font-weight: 800; color: var(--primary); font-family: 'Plus Jakarta Sans';"> <%= studentCount %> </div>
+                  <p style="color: var(--text-muted); font-size: 13px;">Students Enrolled</p>
+                  <a href="?view=students" class="btn" style="margin-top: 16px; width: 100%; justify-content: center;">View Roster</a>
+                </div>
+              <% } else { %>
+                <!-- STUDENT DEADLINES -->
+                <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px;">
+                  <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Upcoming Deadlines</h3>
+                  <% if (typeof upcomingAssignments === 'undefined' || upcomingAssignments.length === 0) { %>
+                    <p style="color: var(--text-muted); font-size: 13px;">No upcoming assignments. You are all caught up!</p>
+                  <% } else { %>
+                    <% upcomingAssignments.forEach(a => { %>
+                      <div style="display: flex; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                        <div style="background: rgba(239,68,68,0.1); color: #ef4444; border-radius: 8px; padding: 8px 12px; text-align: center; flex-shrink: 0;">
+                          <div style="font-size: 16px; font-weight: 800; line-height: 1;"><%= new Date(a.due_date).getDate() %></div>
+                          <div style="font-size: 10px; font-weight: 700; text-transform: uppercase;"><%= new Date(a.due_date).toLocaleString('default', { month: 'short' }) %></div>
+                        </div>
+                        <div>
+                          <div style="font-weight: 700; font-size: 14px; color: var(--text-main);"><%= a.title %></div>
+                          <div style="font-size: 12px; color: var(--text-muted);">Due at <%= new Date(a.due_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) %></div>
+                        </div>
+                      </div>
+                    <% }); %>
+                  <% } %>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div>
+              <!-- LATEST ANNOUNCEMENT -->
+              <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px;">
+                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-bullhorn" style="color: var(--primary);"></i> Latest Announcement</h3>
+                <% if (typeof latestAnnouncements === 'undefined' || latestAnnouncements.length === 0) { %>
+                  <p style="color: var(--text-muted); font-size: 13px;">No announcements yet.</p>
+                <% } else { %>
+                  <h4 style="font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 8px;"><%= latestAnnouncements[0].title %></h4>
+                  <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;"><%= latestAnnouncements[0].message %></p>
+                  <a href="?view=announcements" style="font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none;">View All Announcements <i class="fa-solid fa-arrow-right"></i></a>
+                <% } %>
+              </div>
+
+              <!-- QUICK ACTIONS -->
+              <div class="item-card" style="display: block; padding: 24px;">
+                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Quick Actions</h3>
+                <div style="display: grid; gap: 10px;">
+                  <% if (isTeacher) { %>
+                    <a href="?view=announcements" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-bullhorn"></i> Post Announcement</a>
+                    <a href="?view=materials" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-upload"></i> Upload Material</a>
+                    <a href="?view=assignments" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-file-circle-plus"></i> Create Assignment</a>
+                  <% } else { %>
+                    <a href="?view=materials" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-folder-open"></i> View Course Materials</a>
+                    <a href="?view=assignments" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-file-pen"></i> View Assignments</a>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% } %>
+
+        <!-- ============================================== -->
+        <!-- MATERIALS VIEW -->
+        <!-- ============================================== -->
         <% if (view === 'materials') { %>
           <div class="section-header">
             <h1 class="section-title">Course Materials</h1>
@@ -230,7 +321,7 @@
                  if(ext === 'ppt' || ext === 'pptx') { icon = 'fa-file-powerpoint'; color = '#f59e0b'; }
                  if(ext === 'zip') { icon = 'fa-file-zipper'; color = '#8b5cf6'; }
               %>
-                                <div class="material-card">
+                <div class="material-card">
                   <div class="mat-icon-wrapper">
                     <div class="mat-icon" style="color: <%= color %>; background: <%= color %>15;"><i class="fa-solid <%= icon %>"></i></div>
                     <div style="display:flex; gap:8px; align-items:center;">
@@ -263,27 +354,23 @@
                     </form>
                   <% } %>
                 </div>
-                  <!-- VIEW & DOWNLOAD BUTTONS -->
-                  <div class="mat-actions">
-                    <a href="<%= m.file_url %>" target="_blank" class="btn-action btn-view">
-                      <i class="fa-solid fa-eye"></i> View
-                    </a>
-                    <a href="<%= m.file_url %>?download=true" class="btn-action btn-download">
-                      <i class="fa-solid fa-download"></i> Download
-                    </a>
-                  </div>
-                </div>
               <% }); %>
             </div>
           <% } %>
         <% } %>
 
-        <!-- OTHER VIEWS PLACEHOLDER -->
-        <% if (view !== 'materials') { %>
+        <!-- ============================================== -->
+        <!-- OTHER VIEWS PLACEHOLDER (Announcements, Assignments, etc.) -->
+        <!-- ============================================== -->
+        <% if (view !== 'materials' && view !== 'dashboard') { %>
           <div class="section-header">
-            <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %> Workspace</h1>
+            <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %></h1>
           </div>
-          <p style="color: var(--text-muted);">Welcome to the <%= view %> module.</p>
+          <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
+            <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--text-muted); margin-bottom: 16px;"></i>
+            <h3 style="color: var(--text-main); margin-bottom: 8px;">Under Construction</h3>
+            <p style="color: var(--text-muted); font-size:13px;">The <%= view %> module is coming in the next update.</p>
+          </div>
         <% } %>
 
       </main>
@@ -294,7 +381,7 @@
           <div class="quick-action" onclick="window.location.href='?view=materials'">
             <i class="fa-solid fa-upload"></i> Upload Material
           </div>
-          <div class="quick-action">
+          <div class="quick-action" onclick="window.location.href='?view=announcements'">
             <i class="fa-solid fa-bullhorn"></i> Post Announcement
           </div>
           <div class="quick-action">
