@@ -18,16 +18,14 @@
     :root {
       --bg-body: #f4f6fa; --bg-surface: #ffffff; --sidebar-bg: #0f172a;
       --text-main: #0f172a; --text-muted: #64748b; --border: #e2e8f0;
-      --primary: #4f46e5; --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --primary: #4f46e5; --primary-soft: #eef2ff; --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
       --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.05); --radius: 16px;
     }
-
     [data-theme="dark"] {
       --bg-body: #0f172a; --bg-surface: #1e293b; --text-main: #f8fafc;
-      --text-muted: #94a3b8; --border: #334155; --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-      --shadow-md: 0 4px 12px rgba(0,0,0,0.2);
+      --text-muted: #94a3b8; --border: #334155; --primary-soft: rgba(79,70,229,0.15);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --shadow-md: 0 4px 12px rgba(0,0,0,0.2);
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.3s, border-color 0.3s; }
     body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; font-size: 14px; }
     a { text-decoration: none; color: inherit; }
@@ -35,106 +33,98 @@
 
     /* Top Navbar */
     .topbar { background: var(--bg-surface); border-bottom: 1px solid var(--border); height: 64px; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
-    
     .topbar-left { display: flex; align-items: center; gap: 16px; }
     .mobile-menu-btn { display: none; background: none; border: none; font-size: 20px; color: var(--text-main); cursor: pointer; }
-    
     .brand { display: flex; align-items: center; gap: 10px; }
     .brand-mark { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: #fff; font-size: 12px; background: linear-gradient(135deg, #4f46e5, #0ea5e9); }
     .brand-name { color: var(--text-main); font: 800 15px "Plus Jakarta Sans", sans-serif; }
-
     .topbar-right { display: flex; align-items: center; gap: 16px; }
     .lang-select { background: var(--bg-body); border: 1px solid var(--border); padding: 6px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; outline: none; color: var(--text-main); cursor: pointer; }
-    
     .icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); display: grid; place-items: center; cursor: pointer; transition: 0.2s; position: relative; }
     .icon-btn:hover { color: var(--primary); border-color: var(--primary); }
-
     .user-menu { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-main); }
     .avatar { width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; color: var(--primary); display: grid; place-items: center; font-weight: 800; font-size: 12px; }
 
     /* Layout */
     .layout { display: flex; margin-top: 64px; flex: 1; min-height: calc(100vh - 64px); position: relative; }
-
-    /* Left Sidebar */
     .course-nav { width: 260px; background: var(--bg-surface); border-right: 1px solid var(--border); position: fixed; top: 64px; bottom: 0; left: 0; overflow-y: auto; z-index: 999; transition: transform 0.3s ease; }
     .course-header-side { background: linear-gradient(135deg, #1e1b4b, #4f46e5); padding: 24px; color: white; }
     .course-code-side { display: inline-block; padding: 4px 8px; background: rgba(255,255,255,0.15); border-radius: 6px; font-size: 11px; font-weight: 800; margin-bottom: 12px; }
     .course-header-side h2 { margin: 0; font: 800 18px "Plus Jakarta Sans", sans-serif; }
     .nav-list { list-style: none; padding: 12px; margin: 0; display: flex; flex-direction: column; gap: 4px; }
     .nav-list a { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; color: var(--text-muted); padding: 10px 14px; border-radius: 8px; transition: 0.2s; }
-    .nav-list a:hover, .nav-list a.active { background: rgba(79,70,229,0.1); color: var(--primary); }
+    .nav-list a:hover, .nav-list a.active { background: var(--primary-soft); color: var(--primary); }
     .nav-list i { width: 20px; text-align: center; font-size: 15px; }
     .nav-divider { height: 1px; background: var(--border); margin: 8px 12px; }
 
     /* Main Content Area */
     .content-wrapper { margin-left: 260px; flex: 1; display: flex; min-width: 0; }
     .main-content { flex: 1; padding: 32px; min-width: 0; }
-    
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
     .section-title { font: 800 20px "Plus Jakarta Sans", sans-serif; color: var(--text-main); margin: 0; }
     
-    /* Back Button */
-    .back-btn { 
-      display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; 
-      color: #ffffff; background: linear-gradient(135deg, #4f46e5, #0ea5e9); 
-      padding: 10px 18px; border-radius: 10px; border: none;
-      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); transition: all 0.3s ease; 
-      margin-bottom: 24px;
-    }
+    .back-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #4f46e5, #0ea5e9); padding: 10px 18px; border-radius: 10px; border: none; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); transition: all 0.3s ease; margin-bottom: 24px; }
     .back-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(79, 70, 229, 0.5); color: #ffffff; }
 
     /* Buttons */
     .btn { padding: 8px 16px; background: var(--primary); color: white; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
     .btn:hover { background: #4338ca; }
-    .btn-outline { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
-    .btn-outline:hover { background: var(--bg-body); }
-    .btn-success { background: #10b981; }
-    .btn-success:hover { background: #059669; }
 
-    /* Item Cards */
-    .item-card { border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; background: var(--bg-surface); }
-    .item-card:hover { border-color: var(--primary); box-shadow: var(--shadow-sm); }
-    .item-info h4 { margin: 0 0 4px; font-size: 15px; color: var(--text-main); font-weight: 700; }
-    .item-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; align-items: center; }
+    /* EXTREME MATERIAL CARDS */
+    .material-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+    .material-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+    .material-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+    .material-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #4f46e5, #0ea5e9); }
+    .mat-icon-wrapper { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .mat-icon { width: 48px; height: 48px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 22px; }
+    .mat-week { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); background: var(--bg-body); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); }
+    .mat-title { font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; line-height: 1.3; }
+    .mat-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 24px; display: flex; align-items: center; gap: 6px; }
     
-    /* Tables */
-    .data-table { width: 100%; border-collapse: collapse; text-align: left; }
-    .data-table th { padding: 12px 16px; background: var(--bg-body); font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border); }
-    .data-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-main); }
-    .data-table tr:hover { background: rgba(79,70,229,0.02); }
+    /* DUAL BUTTONS FOR VIEW/DOWNLOAD */
+    .mat-actions { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-action { padding: 10px; border-radius: 8px; font-weight: 600; font-size: 13px; text-align: center; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+    .btn-view { background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border); }
+    .btn-view:hover { background: var(--border); }
+    .btn-download { background: var(--primary); color: white; border: 1px solid var(--primary); }
+    .btn-download:hover { background: #4338ca; }
+
+    /* EXTREME UPLOAD ZONE */
+    .upload-zone { border: 2px dashed var(--border); border-radius: 16px; padding: 40px; text-align: center; background: var(--bg-surface); transition: 0.3s; margin-bottom: 32px; position: relative; overflow: hidden; }
+    .upload-zone:hover { border-color: var(--primary); background: var(--primary-soft); }
+    .upload-zone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .upload-icon { font-size: 48px; color: var(--primary); margin-bottom: 16px; }
+    .upload-zone h3 { margin: 0 0 8px; color: var(--text-main); font-size: 18px; }
+    .upload-zone p { margin: 0; color: var(--text-muted); font-size: 13px; }
+    .upload-form-grid { display: grid; grid-template-columns: 1fr 120px; gap: 16px; margin-bottom: 16px; }
+    .form-input { padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit; font-size: 14px; width: 100%; outline: none; transition: 0.2s; }
+    .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 
     /* Right Sidebar */
     .right-sidebar { width: 300px; padding: 32px 32px 32px 0; display: flex; flex-direction: column; gap: 24px; }
     .widget { background: var(--bg-surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); padding: 24px; }
     .widget h3 { margin: 0 0 16px; font: 800 15px "Plus Jakarta Sans", sans-serif; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
-    
     .quick-action { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; background: var(--bg-body); border: 1px solid var(--border); margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); transition: 0.2s; cursor: pointer; }
     .quick-action:hover { border-color: var(--primary); background: var(--bg-surface); }
     .quick-action i { color: var(--primary); font-size: 16px; }
 
-    /* Overlay for mobile menu */
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; display: none; opacity: 0; transition: opacity 0.3s; }
     .overlay.active { display: block; opacity: 1; }
-
-    /* Responsive */
-    @media (max-width: 1200px) {
-      .right-sidebar { display: none; }
-    }
+    @media (max-width: 1200px) { .right-sidebar { display: none; } }
     @media (max-width: 900px) {
       .course-nav { transform: translateX(-100%); }
       .course-nav.open { transform: translateX(0); }
       .content-wrapper { margin-left: 0; }
       .mobile-menu-btn { display: block; }
       .main-content { padding: 20px; }
-      .brand-name { display: none; }
+      .material-grid { grid-template-columns: 1fr; }
+      .upload-form-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-
   <div class="overlay" id="mobileOverlay"></div>
 
-  <!-- Top Navbar -->
   <header class="topbar">
     <div class="topbar-left">
       <button class="mobile-menu-btn" id="menuBtn"><i class="fa-solid fa-bars"></i></button>
@@ -143,27 +133,22 @@
         <div class="brand-name"><%= isTeacher ? 'Teacher Portal' : 'Student Portal' %></div>
       </div>
     </div>
-    
     <div class="topbar-right">
-      <!-- Notification Bell -->
       <button class="icon-btn" onclick="window.location.href='/dashboard'" title="Check Announcements">
         <i class="fa-regular fa-bell"></i>
         <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
           <span style="position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; border: 2px solid var(--bg-surface);"></span>
         <% } %>
       </button>
-
       <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
         <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 EN</option>
         <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 FR</option>
         <option value="rn" <%= lang === 'rn' ? 'selected' : '' %>>🇧🇮 RN</option>
         <option value="sw" <%= lang === 'sw' ? 'selected' : '' %>>🇹🇿 SW</option>
       </select>
-
       <button class="icon-btn" id="themeToggle">
         <i class="fa-solid fa-moon" id="themeIcon"></i>
       </button>
-
       <div class="user-menu">
         <div class="avatar"><%= user.full_name.charAt(0) %></div>
         <span><%= user.full_name %></span>
@@ -172,10 +157,7 @@
     </div>
   </header>
 
-  <!-- Layout Wrapper -->
   <div class="layout">
-    
-    <!-- Left Sidebar -->
     <aside class="course-nav" id="sidebar">
       <div class="course-header-side">
         <span class="course-code-side"><%= course.code %></span>
@@ -185,17 +167,13 @@
         <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Course Home</a></li>
         <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
         <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
-        
         <div class="nav-divider"></div>
         <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Assessments</div>
-        
         <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
         <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes & Exams</a></li>
         <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> Gradebook</a></li>
-        
         <div class="nav-divider"></div>
         <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Management</div>
-        
         <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
         <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>
         <li><a href="/course/<%= course.id %>?view=analytics" class="<%= view === 'analytics' ? 'active' : '' %>"><i class="fa-solid fa-chart-line"></i> Analytics</a></li>
@@ -203,241 +181,107 @@
       </ul>
     </aside>
 
-    <!-- Main Content + Right Sidebar Wrapper -->
     <div class="content-wrapper">
-      
-      <!-- Middle Content Area -->
       <main class="main-content">
         
-        <!-- BACK BUTTON (Positioned beautifully) -->
         <a href="/dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
 
-        <!-- DASHBOARD VIEW -->
-        <% if (view === 'dashboard') { %>
+        <!-- MATERIALS VIEW (EXTREME UI) -->
+        <% if (view === 'materials') { %>
           <div class="section-header">
-            <h1 class="section-title">Course Workspace: <%= course.title %></h1>
-          </div>
-          <p style="color: var(--text-muted); font-size:14px;">Welcome to your course command center. Select a tool from the sidebar to manage your class.</p>
-        <% } %>
-
-        <!-- ANNOUNCEMENTS VIEW -->
-        <% if (view === 'announcements') { %>
-          <div class="section-header">
-            <h1 class="section-title">Course Announcements</h1>
+            <h1 class="section-title">Course Materials</h1>
           </div>
 
+          <!-- TEACHER UPLOAD ZONE -->
           <% if (isTeacher) { %>
-            <div class="item-card" style="display: block; margin-bottom: 24px; background: var(--bg-surface); border-color: var(--primary);">
-              <h4 style="margin-bottom: 12px; color: var(--primary);"><i class="fa-solid fa-pen-to-square"></i> Post a New Announcement</h4>
-              <form action="/course/<%= course.id %>/announcements" method="POST">
-                <input type="text" name="title" placeholder="Announcement Title (e.g., Exam Moved)" required 
-                       style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit;">
-                <textarea name="message" placeholder="Type your message to the students here..." required rows="3" 
-                          style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit; resize: vertical;"></textarea>
-                <button type="submit" class="btn"><i class="fa-solid fa-paper-plane"></i> Publish Announcement</button>
+            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px;">
+              <h3 style="font-size: 18px; color: var(--primary); margin-bottom: 24px;"><i class="fa-solid fa-cloud-arrow-up"></i> Upload New Material</h3>
+              <form action="/course/<%= course.id %>/materials" method="POST" enctype="multipart/form-data">
+                <div class="upload-form-grid">
+                  <input type="text" name="title" class="form-input" placeholder="Document Title (e.g., Week 1 Lecture Slides)" required>
+                  <input type="number" name="week_number" class="form-input" placeholder="Week #" min="1" required>
+                </div>
+                <div class="upload-zone">
+                  <input type="file" name="material" required accept=".pdf,.doc,.docx,.ppt,.pptx,.zip">
+                  <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                  <h3>Click to Browse or Drag & Drop File</h3>
+                  <p>Supported formats: PDF, DOCX, PPTX, ZIP (Max 10MB)</p>
+                </div>
+                <button type="submit" class="btn" style="width: 100%; justify-content: center; padding: 14px; font-size: 15px;"><i class="fa-solid fa-upload"></i> Upload Material</button>
               </form>
             </div>
           <% } %>
 
-          <% if (announcements.length === 0) { %>
-             <p style="color:var(--text-muted); font-size: 13px;">No announcements posted yet.</p>
-          <% } else { %>
-            <% announcements.forEach(a => { %>
-              <div class="item-card" style="display:block;">
-                <h4 style="color: var(--text-main); font-size: 16px;"><%= a.title %></h4>
-                <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px; line-height: 1.6;"><%= a.message %></p>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px;">
-                  <i class="fa-regular fa-clock"></i> Posted on <%= new Date(a.created_at).toLocaleString() %>
-                </div>
-              </div>
-            <% }); %>
-          <% } %>
-        <% } %>
-
-        <!-- MATERIALS VIEW -->
-        <% if (view === 'materials') { %>
-          <div class="section-header">
-            <h1 class="section-title">Course Materials</h1>
-            <% if (isTeacher) { %><button class="btn"><i class="fa-solid fa-upload"></i> Upload File</button><% } %>
-          </div>
+          <!-- MATERIALS LIST -->
           <% if (materials.length === 0) { %>
-             <p style="color:var(--text-muted);">No materials uploaded yet.</p>
+             <div style="text-align: center; padding: 60px; color: var(--text-muted); background: var(--bg-surface); border-radius: 16px; border: 1px dashed var(--border);">
+               <i class="fa-solid fa-folder-open" style="font-size: 48px; color: var(--border); margin-bottom: 16px;"></i>
+               <h3>No materials uploaded yet.</h3>
+               <p>The instructor hasn't shared any files for this course.</p>
+             </div>
           <% } else { %>
-            <% materials.forEach(m => { %>
-              <div class="item-card">
-                <div class="item-info">
-                  <h4><%= m.title %></h4>
-                  <div class="item-meta"><span><i class="fa-solid fa-calendar"></i> Week <%= m.week_number %></span></div>
-                </div>
-                <div style="display:flex; gap:8px;">
-                  <a href="<%= m.file_url %>" target="_blank" class="btn btn-outline"><i class="fa-solid fa-eye"></i> View</a>
-                  <% if (isTeacher) { %><button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button><% } %>
-                </div>
-              </div>
-            <% }); %>
-          <% } %>
-        <% } %>
-
-        <!-- ASSIGNMENTS VIEW -->
-        <% if (view === 'assignments') { %>
-          <div class="section-header">
-            <h1 class="section-title">Assignments</h1>
-            <% if (isTeacher) { %><button class="btn"><i class="fa-solid fa-plus"></i> Create Assignment</button><% } %>
-          </div>
-          <% if (assignments.length === 0) { %>
-             <p style="color:var(--text-muted);">No assignments created yet.</p>
-          <% } else { %>
-            <% assignments.forEach(a => { %>
-              <div class="item-card">
-                <div class="item-info">
-                  <h4><%= a.title %></h4>
-                  <div class="item-meta">
-                    <span><i class="fa-regular fa-clock"></i> Due: <%= new Date(a.due_date).toLocaleDateString() %></span>
-                    <span><i class="fa-solid fa-star"></i> <%= a.max_points %> Points</span>
+            <div class="material-grid">
+              <% materials.forEach(m => { 
+                 const ext = m.file_url.split('.').pop().toLowerCase();
+                 let icon = 'fa-file';
+                 let color = '#64748b';
+                 if(ext === 'pdf') { icon = 'fa-file-pdf'; color = '#ef4444'; }
+                 if(ext === 'doc' || ext === 'docx') { icon = 'fa-file-word'; color = '#3b82f6'; }
+                 if(ext === 'ppt' || ext === 'pptx') { icon = 'fa-file-powerpoint'; color = '#f59e0b'; }
+                 if(ext === 'zip') { icon = 'fa-file-zipper'; color = '#8b5cf6'; }
+              %>
+                <div class="material-card">
+                  <div class="mat-icon-wrapper">
+                    <div class="mat-icon" style="color: <%= color %>; background: <%= color %>15;"><i class="fa-solid <%= icon %>"></i></div>
+                    <span class="mat-week">Week <%= m.week_number %></span>
+                  </div>
+                  <h4 class="mat-title"><%= m.title %></h4>
+                  <div class="mat-meta"><i class="fa-regular fa-calendar"></i> Uploaded <%= new Date(m.created_at).toLocaleDateString() %></div>
+                  
+                  <!-- VIEW & DOWNLOAD BUTTONS -->
+                  <div class="mat-actions">
+                    <a href="<%= m.file_url %>" target="_blank" class="btn-action btn-view">
+                      <i class="fa-solid fa-eye"></i> View
+                    </a>
+                    <a href="<%= m.file_url %>?download=true" class="btn-action btn-download">
+                      <i class="fa-solid fa-download"></i> Download
+                    </a>
                   </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                  <% if (isTeacher) { %>
-                    <button class="btn btn-outline"><i class="fa-solid fa-check-double"></i> Grade</button>
-                    <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
-                  <% } else { %>
-                    <button class="btn"><i class="fa-solid fa-upload"></i> Submit Work</button>
-                  <% } %>
-                </div>
-              </div>
-            <% }); %>
-          <% } %>
-        <% } %>
-
-        <!-- QUIZZES VIEW -->
-        <% if (view === 'quizzes') { %>
-          <div class="section-header">
-            <h1 class="section-title">Quizzes & Exams</h1>
-            <% if (isTeacher) { %><button class="btn"><i class="fa-solid fa-plus"></i> Create Quiz</button><% } %>
-          </div>
-          <% if (quizzes.length === 0) { %>
-             <p style="color:var(--text-muted);">No quizzes created yet.</p>
-          <% } else { %>
-            <% quizzes.forEach(q => { %>
-              <div class="item-card">
-                <div class="item-info">
-                  <h4><%= q.title %></h4>
-                  <div class="item-meta">
-                    <span><i class="fa-regular fa-clock"></i> <%= q.time_limit_minutes %> Mins</span>
-                    <span><i class="fa-solid fa-toggle-on"></i> Auto-Grading: Enabled</span>
-                  </div>
-                </div>
-                <div style="display:flex; gap:8px;">
-                  <% if (isTeacher) { %>
-                    <button class="btn btn-outline"><i class="fa-solid fa-chart-bar"></i> Results</button>
-                    <button class="btn" style="background:#ef4444;"><i class="fa-solid fa-trash"></i></button>
-                  <% } else { %>
-                    <button class="btn"><i class="fa-solid fa-play"></i> Start Quiz</button>
-                  <% } %>
-                </div>
-              </div>
-            <% }); %>
-          <% } %>
-        <% } %>
-
-        <!-- STUDENTS ROSTER -->
-        <% if (view === 'students' && isTeacher) { %>
-          <div class="section-header">
-            <h1 class="section-title">Class Roster (<%= students.length %>)</h1>
-            <button class="btn btn-outline"><i class="fa-solid fa-file-export"></i> Export CSV</button>
-          </div>
-          <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;">
-            <table class="data-table">
-              <thead>
-                <tr><th>Student Name</th><th>Admission No.</th><th>Email</th><th>Action</th></tr>
-              </thead>
-              <tbody>
-                <% students.forEach(s => { %>
-                  <tr>
-                    <td style="font-weight:600;"><%= s.full_name %></td>
-                    <td style="font-family:monospace;"><%= s.admission_number %></td>
-                    <td><%= s.email %></td>
-                    <td><button class="btn btn-outline" style="padding:6px 10px; font-size:11px;">Message</button></td>
-                  </tr>
-                <% }); %>
-              </tbody>
-            </table>
-          </div>
-        <% } %>
-
-        <!-- GRADEBOOK -->
-        <% if (view === 'grades') { %>
-          <div class="section-header">
-            <h1 class="section-title">Gradebook</h1>
-            <% if (isTeacher) { %><button class="btn btn-success"><i class="fa-solid fa-cloud-arrow-up"></i> Push to SIS</button><% } %>
-          </div>
-          <% if (grades.length === 0) { %>
-             <p style="color:var(--text-muted);">No grades recorded yet.</p>
-          <% } else { %>
-            <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <% if (isTeacher) { %><th>Student</th><% } %>
-                    <th>Assignment</th>
-                    <th>Score</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% grades.forEach(g => { %>
-                    <tr>
-                      <% if (isTeacher) { %><td style="font-weight:600;"><%= g.student_name %></td><% } %>
-                      <td><%= g.title %></td>
-                      <td style="font-weight:800; color:var(--primary);"><%= g.grade %> / <%= g.max_points %></td>
-                      <td><button class="btn btn-outline" style="padding:6px 10px; font-size:11px;">Edit</button></td>
-                    </tr>
-                  <% }); %>
-                </tbody>
-              </table>
+              <% }); %>
             </div>
           <% } %>
         <% } %>
 
-        <!-- PLACEHOLDER VIEWS -->
-        <% if (view === 'forums' || view === 'analytics' || view === 'settings') { %>
+        <!-- OTHER VIEWS PLACEHOLDER -->
+        <% if (view !== 'materials') { %>
           <div class="section-header">
-            <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %></h1>
+            <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %> Workspace</h1>
           </div>
-          <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px;">
-            <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--text-muted); margin-bottom: 16px;"></i>
-            <h3 style="color: var(--text-main); margin-bottom: 8px;">Under Construction</h3>
-            <p style="color: var(--text-muted); font-size:13px;">The <%= view %> module is coming in the next update.</p>
-          </div>
+          <p style="color: var(--text-muted);">Welcome to the <%= view %> module.</p>
         <% } %>
 
       </main>
 
-      <!-- Right Sidebar (Quick Actions) -->
       <aside class="right-sidebar">
         <div class="widget">
           <h3><i class="fa-solid fa-bolt"></i> Quick Actions</h3>
-          <div class="quick-action">
-            <i class="fa-solid fa-bullhorn"></i> Post Announcement
-          </div>
-          <div class="quick-action">
+          <div class="quick-action" onclick="window.location.href='?view=materials'">
             <i class="fa-solid fa-upload"></i> Upload Material
           </div>
           <div class="quick-action">
-            <i class="fa-solid fa-file-circle-plus"></i> Create Assignment
+            <i class="fa-solid fa-bullhorn"></i> Post Announcement
           </div>
           <div class="quick-action">
             <i class="fa-solid fa-list-check"></i> Take Attendance
           </div>
         </div>
-
         <div class="widget">
           <h3><i class="fa-solid fa-circle-info"></i> Course Info</h3>
           <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><strong>Instructor:</strong> <%= course.teacher_name || 'You' %></p>
           <p style="font-size: 13px; color: var(--text-muted);"><strong>Credits:</strong> <%= course.credits %></p>
         </div>
       </aside>
-
     </div>
   </div>
 
@@ -449,7 +293,6 @@
     if (htmlElement.getAttribute('data-theme') === 'dark') {
       themeIcon.classList.replace('fa-moon', 'fa-sun');
     }
-
     themeToggle.addEventListener('click', () => {
       if (htmlElement.getAttribute('data-theme') === 'dark') {
         htmlElement.removeAttribute('data-theme');
@@ -465,16 +308,8 @@
     const menuBtn = document.getElementById('menuBtn');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobileOverlay');
-
-    menuBtn.addEventListener('click', () => {
-      sidebar.classList.add('open');
-      overlay.classList.add('active');
-    });
-
-    overlay.addEventListener('click', () => {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('active');
-    });
+    menuBtn.addEventListener('click', () => { sidebar.classList.add('open'); overlay.classList.add('active'); });
+    overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('active'); });
   </script>
 </body>
 </html>

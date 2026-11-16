@@ -1,3 +1,17 @@
+
+
+
+
+
+const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+
+
+
+
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -214,6 +228,44 @@ app.post('/course/:id/announcements', async (req, res) => {
     await pool.query(`INSERT INTO lms_announcements (course_id, title, message, created_by) VALUES ($1, $2, $3, $4)`, [courseId, title, message, req.session.user.id]);
     res.redirect(`/course/${courseId}?view=announcements`);
   } catch (err) { res.status(500).send("Error posting announcement: " + err.message); }
+});
+
+app.post('/course/:id/materials', upload.single('material'), async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const courseId = req.params.id;
+  const { title, week_number } = req.body;
+  const file = req.file;
+
+  if ((req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') || !file || !title) {
+    return res.redirect(`/course/${courseId}?view=materials`);
+  }
+
+  try {
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `course_${courseId}/${Date.now()}.${fileExt}`;
+    
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('course-materials')
+      .upload(fileName, file.buffer, { contentType: file.mimetype });
+
+    if (error) throw error;
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('course-materials')
+      .getPublicUrl(fileName);
+
+    // Save to Database
+    await pool.query(`
+      INSERT INTO lms_materials (course_id, title, file_url, week_number, created_by)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [courseId, title, publicUrl, Number(week_number) || 1, req.session.user.id]);
+
+    res.redirect(`/course/${courseId}?view=materials`);
+  } catch (err) {
+    res.status(500).send("Upload Error: " + err.message);
+  }
 });
 
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
