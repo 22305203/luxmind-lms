@@ -201,8 +201,29 @@ app.get('/course/:id', async (req, res) => {
 
     let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
     
-    if (view === 'dashboard' || view === 'assignments') {
-      const r = await pool.query(`SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]); assignments = r.rows;
+      if (view === 'dashboard' || view === 'assignments') {
+      if (isTeacher) {
+        // Teachers see ALL assignments and the count of submissions
+        const r = await pool.query(`
+          SELECT a.*, 
+                 (SELECT COUNT(*) FROM lms_submissions s WHERE s.assignment_id = a.id) as submission_count
+          FROM lms_assignments a 
+          WHERE a.course_id = $1 
+          ORDER BY a.due_date ASC
+        `, [courseId]); 
+        assignments = r.rows;
+      } else {
+        // Students ONLY see published assignments, and their own submission status
+        const r = await pool.query(`
+          SELECT a.*, 
+                 s.id as submission_id, s.file_url as submitted_file, s.grade, s.feedback, s.submitted_at
+          FROM lms_assignments a 
+          LEFT JOIN lms_submissions s ON s.assignment_id = a.id AND s.student_id = $2
+          WHERE a.course_id = $1 AND a.is_published = true
+          ORDER BY a.due_date ASC
+        `, [courseId, req.session.user.id]); 
+        assignments = r.rows;
+      }
     }
     if (view === 'quizzes') {
       const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]); quizzes = r.rows;
@@ -341,6 +362,66 @@ app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
   } catch (err) {
     res.status(500).send("Toggle Error: " + err.message);
   }
+});
+
+
+// CREATE ASSIGNMENT (Teacher Only)
+app.post('/course/:id/assignments', async (req, res) => {
+  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  const { title, instructions, due_date, max_points, is_published } = req.body;
+  
+  try {
+    await pool.query(`
+      INSERT INTO lms_assignments (course_id, title, instructions, due_date, max_points, is_published, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [courseId, title, instructions, due_date, Number(max_points) || 100, is_published === 'on', req.session.user.id]);
+    
+    res.redirect(`/course/${courseId}?view=assignments`);
+  } catch (err) { res.status(500).send("Create Assignment Error: " + err.message); }
+});
+
+// TOGGLE ASSIGNMENT VISIBILITY (Teacher Only)
+app.post('/course/:id/assignments/:assignment_id/toggle', async (req, res) => {
+  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
+  const { id, assignment_id } = req.params;
+  
+  try {
+    await pool.query(`
+      UPDATE lms_assignments SET is_published = NOT is_published WHERE id = $1 AND course_id = $2
+    `, [assignment_id, id]);
+    res.redirect(`/course/${id}?view=assignments`);
+  } catch (err) { res.status(500).send("Toggle Error: " + err.message); }
+});
+
+// SUBMIT ASSIGNMENT (Student Only)
+app.post('/course/:id/assignments/:assignment_id/submit', upload.single('submission'), async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id, assignment_id } = req.params;
+  const file = req.file;
+
+  if (!file) return res.redirect(`/course/${id}?view=assignments`);
+
+  try {
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `submissions/${assignment_id}_student_${req.session.user.id}_${Date.now()}.${fileExt}`;
+    
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage.from('course-materials').upload(fileName, file.buffer, { contentType: file.mimetype });
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage.from('course-materials').getPublicUrl(fileName);
+
+    // Save to Database (Upsert in case they resubmit)
+    await pool.query(`
+      INSERT INTO lms_submissions (assignment_id, student_id, file_url)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (assignment_id, student_id) 
+      DO UPDATE SET file_url = EXCLUDED.file_url, submitted_at = NOW()
+    `, [assignment_id, req.session.user.id, publicUrl]);
+
+    res.redirect(`/course/${id}?view=assignments`);
+  } catch (err) { res.status(500).send("Submission Error: " + err.message); }
 });
 
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
