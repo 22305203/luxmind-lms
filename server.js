@@ -5,8 +5,8 @@ const { Pool } = require('pg');
 const session = require('express-session');
 
 const app = express();
-
 app.set('trust proxy', 1);
+
 const pool = new Pool({
   user: 'postgres.fclhdbppskmjlmbhtoug',
   password: 'LuxMindAdmin2026',
@@ -15,7 +15,6 @@ const pool = new Pool({
   database: 'postgres',
   ssl: { rejectUnauthorized: false }
 });
-console.log("🔥 ATTEMPTING DB CONNECTION WITH:", process.env.DATABASE_URL || 'HARDCODED_URL_USED');
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -24,19 +23,11 @@ app.use(session({
   secret: 'luxmind-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: {
-    secure: true,       // Required for HTTPS on Render
-    sameSite: 'none',   // Allows cross-site cookies if needed
-    httpOnly: true
-  }
+  cookie: { secure: true, sameSite: 'none', httpOnly: true }
 }));
-app.get('/', (req, res) => {
-  res.redirect('/dashboard');
-});
 
-// ============================================
-// --- i18n: TRANSLATIONS & MIDDLEWARE ---
-// ============================================
+app.get('/', (req, res) => res.redirect('/dashboard'));
+
 const translations = {
   en: {
     portal_title: "LUXMIND PORTAL",
@@ -94,12 +85,7 @@ app.use((req, res, next) => {
   res.locals.lang = lang;
   res.locals.t = translations[lang];
   
-  // Force Burundi Time (UTC+2)
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Africa/Bujumbura',
-    hour: 'numeric',
-    hour12: false
-  });
+  const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Bujumbura', hour: 'numeric', hour12: false });
   const hour = parseInt(formatter.format(new Date()), 10);
   
   if (hour < 12) res.locals.greeting = res.locals.t.greeting.morning;
@@ -109,106 +95,55 @@ app.use((req, res, next) => {
   next();
 });
 
-// Language Switcher Route
 app.get('/set-language/:lang', (req, res) => {
-  if (translations[req.params.lang]) {
-    req.session.language = req.params.lang;
-  }
+  if (translations[req.params.lang]) req.session.language = req.params.lang;
   res.redirect(req.get('referer') || '/dashboard');
 });
 
-// ============================================
-// --- ROUTES ---
-// ============================================
-app.get('/login', (req, res) => {
-  res.render('login', { error: null });
-});
+app.get('/login', (req, res) => res.render('login', { error: null }));
 
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const result = await pool.query(
-      `SELECT id, full_name, role FROM users WHERE username = $1 AND password = $2`,
-      [username, password]
-    );
+    const result = await pool.query(`SELECT id, full_name, role FROM users WHERE username = $1 AND password = $2`, [username, password]);
     if (result.rows.length > 0) {
       req.session.user = result.rows[0];
       return res.redirect('/dashboard');
     }
     res.render('login', { error: 'Invalid credentials' });
-  } catch (err) {
-    res.status(500).send("Database Error: " + err.message);
-  }
+  } catch (err) { res.status(500).send("Database Error: " + err.message); }
 });
 
 app.get('/dashboard', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  
   const isTeacher = req.session.user.role === 'teacher' || req.session.user.role === 'advisor';
 
   try {
     if (isTeacher) {
-      // FETCH TEACHER DATA
       const courseRes = await pool.query(`
-        SELECT c.id, c.code, c.title, s.group_name, 
-               (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id) as student_count
-        FROM courses c
-        JOIN course_sections s ON s.course_id = c.id
-        WHERE s.teacher_id = $1
+        SELECT c.id, c.code, c.title, s.group_name, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id) as student_count
+        FROM courses c JOIN course_sections s ON s.course_id = c.id WHERE s.teacher_id = $1
       `, [req.session.user.id]);
-
-      const ungradedCount = 14; 
-      const pendingMessages = 3;
-      const onlineUsers = 5;
-
-      return res.render('lms-teacher-dashboard', { 
-        user: req.session.user, 
-        courses: courseRes.rows,
-        ungradedCount,
-        pendingMessages,
-        onlineUsers
-      });
+      return res.render('lms-teacher-dashboard', { user: req.session.user, courses: courseRes.rows, ungradedCount: 14, pendingMessages: 3, onlineUsers: 5 });
     } else {
-      // FETCH STUDENT DATA
       const courseRes = await pool.query(`
         SELECT c.id, c.code, c.title, u.full_name AS teacher_name
-        FROM courses c
-        JOIN enrollments e ON e.course_id = c.id
-        LEFT JOIN course_sections s ON s.course_id = c.id
-        LEFT JOIN users u ON u.id = s.teacher_id
+        FROM courses c JOIN enrollments e ON e.course_id = c.id LEFT JOIN course_sections s ON s.course_id = c.id LEFT JOIN users u ON u.id = s.teacher_id
         WHERE e.user_id = $1
       `, [req.session.user.id]);
 
-      // 1. Get the last time the student checked announcements
       const userRes = await pool.query(`SELECT last_announcements_view_at FROM users WHERE id = $1`, [req.session.user.id]);
       const lastView = userRes.rows[0]?.last_announcements_view_at || new Date(0);
-      
-      // 2. Count announcements created AFTER that time
       const notifRes = await pool.query(`SELECT COUNT(*) FROM lms_announcements WHERE created_at > $1`, [lastView]);
       const unreadCount = parseInt(notifRes.rows[0].count);
 
-      // 3. Fetch announcements for the feed
-      const annRes = await pool.query(`
-        SELECT a.*, u.full_name AS author_name 
-        FROM lms_announcements a
-        LEFT JOIN users u ON u.id = a.created_by
-        ORDER BY a.created_at DESC
-      `);
+      const annRes = await pool.query(`SELECT a.*, u.full_name AS author_name FROM lms_announcements a LEFT JOIN users u ON u.id = a.created_by ORDER BY a.created_at DESC`);
 
-      return res.render('lms-dashboard', { 
-        user: req.session.user, 
-        courses: courseRes.rows,
-        announcements: annRes.rows,
-        onlineUsers: 3,
-        unreadCount: unreadCount
-      });
+      return res.render('lms-dashboard', { user: req.session.user, courses: courseRes.rows, announcements: annRes.rows, onlineUsers: 3, unreadCount: unreadCount });
     }
-  } catch (err) {
-    res.status(500).send("Dashboard Error: " + err.message);
-  }
+  } catch (err) { res.status(500).send("Dashboard Error: " + err.message); }
 });
 
-// COURSE CONTENT PAGE (Multi-tab)
 app.get('/course/:id', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
@@ -216,145 +151,55 @@ app.get('/course/:id', async (req, res) => {
   const isTeacher = req.session.user.role === 'teacher' || req.session.user.role === 'advisor';
   
   try {
-    // 1. Verify access
     let courseCheck;
     if (!isTeacher) {
-      courseCheck = await pool.query(
-        `SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c 
-         JOIN enrollments e ON e.course_id = c.id 
-         LEFT JOIN course_sections s ON s.course_id = c.id
-         LEFT JOIN users u ON u.id = s.teacher_id
-         WHERE c.id = $1 AND e.user_id = $2`,
-        [courseId, req.session.user.id]
-      );
+      courseCheck = await pool.query(`SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c JOIN enrollments e ON e.course_id = c.id LEFT JOIN course_sections s ON s.course_id = c.id LEFT JOIN users u ON u.id = s.teacher_id WHERE c.id = $1 AND e.user_id = $2`, [courseId, req.session.user.id]);
     } else {
-      courseCheck = await pool.query(
-        `SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c 
-         LEFT JOIN course_sections s ON s.course_id = c.id
-         LEFT JOIN users u ON u.id = s.teacher_id
-         WHERE c.id = $1 AND s.teacher_id = $2`,
-        [courseId, req.session.user.id]
-      );
+      courseCheck = await pool.query(`SELECT c.id, c.code, c.title, c.credits, u.full_name AS teacher_name FROM courses c LEFT JOIN course_sections s ON s.course_id = c.id LEFT JOIN users u ON u.id = s.teacher_id WHERE c.id = $1 AND s.teacher_id = $2`, [courseId, req.session.user.id]);
     }
-
-    if (courseCheck.rows.length === 0) return res.send("Access Denied: You do not have permission for this course.");
+    if (courseCheck.rows.length === 0) return res.send("Access Denied.");
     const course = courseCheck.rows[0];
 
-    // 2. Fetch data based on the view
     let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
     
     if (view === 'dashboard' || view === 'assignments') {
-      const r = await pool.query(`SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
-      assignments = r.rows;
+      const r = await pool.query(`SELECT * FROM lms_assignments WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]); assignments = r.rows;
     }
     if (view === 'quizzes') {
-      const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
-      quizzes = r.rows;
+      const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]); quizzes = r.rows;
     }
     if (view === 'announcements') {
-       // IF STUDENT OPENS THE PAGE, CLEAR THE RED BELL
-       if (!isTeacher) {
-         await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]);
-       }
-       const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]);
-       announcements = r.rows;
+       if (!isTeacher) { await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]); }
+       const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]); announcements = r.rows;
     }
     if (view === 'materials') {
-      const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]);
-      materials = m.rows;
+      const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
     }
     if (view === 'students' && isTeacher) {
-      const st = await pool.query(`
-        SELECT u.id, u.full_name, sp.admission_number, u.email
-        FROM enrollments e 
-        JOIN users u ON u.id = e.user_id 
-        LEFT JOIN student_profiles sp ON sp.user_id = u.id
-        WHERE e.course_id = $1
-      `, [courseId]);
-      students = st.rows;
+      const st = await pool.query(`SELECT u.id, u.full_name, sp.admission_number, u.email FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id WHERE e.course_id = $1`, [courseId]); students = st.rows;
     }
     if (view === 'grades') {
       if (isTeacher) {
-        const r = await pool.query(`
-          SELECT u.full_name as student_name, a.title, s.grade, a.max_points 
-          FROM lms_submissions s
-          JOIN lms_assignments a ON a.id = s.assignment_id
-          JOIN users u ON u.id = s.student_id
-          WHERE a.course_id = $1
-        `, [courseId]);
-        grades = r.rows;
+        const r = await pool.query(`SELECT u.full_name as student_name, a.title, s.grade, a.max_points FROM lms_submissions s JOIN lms_assignments a ON a.id = s.assignment_id JOIN users u ON u.id = s.student_id WHERE a.course_id = $1`, [courseId]); grades = r.rows;
       } else {
-        const r = await pool.query(`
-          SELECT a.title, s.grade, a.max_points 
-          FROM lms_submissions s
-          JOIN lms_assignments a ON a.id = s.assignment_id
-          WHERE s.student_id = $1 AND a.course_id = $2
-        `, [req.session.user.id, courseId]);
-        grades = r.rows;
+        const r = await pool.query(`SELECT a.title, s.grade, a.max_points FROM lms_submissions s JOIN lms_assignments a ON a.id = s.assignment_id WHERE s.student_id = $1 AND a.course_id = $2`, [req.session.user.id, courseId]); grades = r.rows;
       }
     }
-
-    res.render('lms-course', { 
-      user: req.session.user, 
-      isTeacher,
-      course: course,
-      view: view,
-      assignments, quizzes, grades, announcements, materials, students,
-      unreadCount: 0 
-    });
-  } catch (err) {
-    res.status(500).send("Course Error: " + err.message);
-  }
+    res.render('lms-course', { user: req.session.user, isTeacher, course, view, assignments, quizzes, grades, announcements, materials, students, unreadCount: 0 });
+  } catch (err) { res.status(500).send("Course Error: " + err.message); }
 });
 
-// POST NEW ANNOUNCEMENT (Teacher Only)
 app.post('/course/:id/announcements', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
   const { title, message } = req.body;
-
-  // Ensure only teachers/advisors can post
-  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') {
-    return res.status(403).send("Access Denied.");
-  }
-
-  if (!title || !message) {
-    return res.redirect(`/course/${courseId}?view=announcements`);
-  }
-
+  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') return res.status(403).send("Access Denied.");
+  if (!title || !message) return res.redirect(`/course/${courseId}?view=announcements`);
   try {
-    await pool.query(`
-      INSERT INTO lms_announcements (course_id, title, message, created_by)
-      VALUES ($1, $2, $3, $4)
-    `, [courseId, title, message, req.session.user.id]);
-
+    await pool.query(`INSERT INTO lms_announcements (course_id, title, message, created_by) VALUES ($1, $2, $3, $4)`, [courseId, title, message, req.session.user.id]);
     res.redirect(`/course/${courseId}?view=announcements`);
-  } catch (err) {
-    res.status(500).send("Error posting announcement: " + err.message);
-  }
+  } catch (err) { res.status(500).send("Error posting announcement: " + err.message); }
 });
 
-app.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
-});
-
-app.get('/debug-teacher', async (req, res) => {
-  if (!req.session.user) return res.send('You are not logged in. Please log in first.');
-  
-  try {
-    const user = req.session.user;
-    const allSections = await pool.query(`SELECT id, course_id, teacher_id, group_name FROM course_sections`);
-    const mySections = await pool.query(`SELECT * FROM course_sections WHERE teacher_id = $1`, [user.id]);
-    
-    res.json({ 
-      loggedInUser: user,
-      allSectionsInDB: allSections.rows,
-      mySections: mySections.rows
-    });
-  } catch (err) {
-    res.send("Error: " + err.message);
-  }
-});
-
+app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
 app.listen(process.env.PORT || 3001, () => console.log('LuxMind LMS running'));
