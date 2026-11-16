@@ -14,7 +14,7 @@ app.set('trust proxy', 1);
 // --- SUPABASE CONFIGURATION (LMS STORAGE) ---
 // ============================================
 const supabase = createClient(
-  'https://dxprjnjdkzykqnawhucf.supabase.co', 
+  'https://dxprjnjdkzykqnawhucf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4cHJqbmpka3p5a3FuYXdodWNmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDY5NTc3NiwiZXhwIjoyMTEwMjcxNzc2fQ.TxLB4kIYynPPSztEkEPDJR2aDgE7G90WPbgaiG_hx4I'
 );
 
@@ -104,11 +104,10 @@ app.use((req, res, next) => {
   const lang = req.session.language;
   res.locals.lang = lang;
   res.locals.t = translations[lang];
-  
-  // Force Burundi Time (UTC+2)
+
   const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Bujumbura', hour: 'numeric', hour12: false });
   const hour = parseInt(formatter.format(new Date()), 10);
-  
+
   if (hour < 12) res.locals.greeting = res.locals.t.greeting.morning;
   else if (hour < 18) res.locals.greeting = res.locals.t.greeting.afternoon;
   else res.locals.greeting = res.locals.t.greeting.evening;
@@ -158,7 +157,7 @@ app.get('/dashboard', async (req, res) => {
 
       const userRes = await pool.query(`SELECT last_announcements_view_at FROM users WHERE id = $1`, [req.session.user.id]);
       const lastView = userRes.rows[0]?.last_announcements_view_at || new Date(0);
-      
+
       const notifRes = await pool.query(`
         SELECT a.id, a.title, a.message, a.created_at, c.code as course_code, c.id as course_id
         FROM lms_announcements a
@@ -171,8 +170,8 @@ app.get('/dashboard', async (req, res) => {
 
       const annRes = await pool.query(`SELECT a.*, u.full_name AS author_name FROM lms_announcements a LEFT JOIN users u ON u.id = a.created_by ORDER BY a.created_at DESC`);
 
-      return res.render('lms-dashboard', { 
-        user: req.session.user, 
+      return res.render('lms-dashboard', {
+        user: req.session.user,
         courses: courseRes.rows,
         announcements: annRes.rows,
         onlineUsers: 3,
@@ -188,7 +187,7 @@ app.get('/course/:id', async (req, res) => {
   const courseId = req.params.id;
   const view = req.query.view || 'dashboard';
   const isTeacher = req.session.user.role === 'teacher' || req.session.user.role === 'advisor';
-  
+
   try {
     let courseCheck;
     if (!isTeacher) {
@@ -200,42 +199,38 @@ app.get('/course/:id', async (req, res) => {
     const course = courseCheck.rows[0];
 
     let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
-    
-      if (view === 'dashboard' || view === 'assignments') {
+
+    if (view === 'dashboard' || view === 'assignments' || view === 'grades') {
       if (isTeacher) {
-        // Teachers see ALL assignments and the count of submissions
         const r = await pool.query(`
-          SELECT a.*, 
+          SELECT a.*,
                  (SELECT COUNT(*) FROM lms_submissions s WHERE s.assignment_id = a.id) as submission_count
-          FROM lms_assignments a 
-          WHERE a.course_id = $1 
+          FROM lms_assignments a
+          WHERE a.course_id = $1
           ORDER BY a.due_date ASC
-        `, [courseId]); 
+        `, [courseId]);
         assignments = r.rows;
       } else {
-        // Students ONLY see published assignments, and their own submission status
         const r = await pool.query(`
-          SELECT a.*, 
+          SELECT a.*,
                  s.id as submission_id, s.file_url as submitted_file, s.grade, s.feedback, s.submitted_at
-          FROM lms_assignments a 
+          FROM lms_assignments a
           LEFT JOIN lms_submissions s ON s.assignment_id = a.id AND s.student_id = $2
           WHERE a.course_id = $1 AND a.is_published = true
           ORDER BY a.due_date ASC
-        `, [courseId, req.session.user.id]); 
+        `, [courseId, req.session.user.id]);
         assignments = r.rows;
       }
     }
+
     if (view === 'quizzes') {
       const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]); quizzes = r.rows;
     }
     if (view === 'announcements') {
-       if (!isTeacher) { await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]); }
-       const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]); announcements = r.rows;
+      if (!isTeacher) { await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]); }
+      const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]); announcements = r.rows;
     }
-    
-    // ============================================
-    // UPDATED MATERIALS LOGIC HERE (Step 2)
-    // ============================================
+
     if (view === 'materials') {
       if (isTeacher) {
         const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
@@ -247,52 +242,94 @@ app.get('/course/:id', async (req, res) => {
     if (view === 'students' && isTeacher) {
       const st = await pool.query(`SELECT u.id, u.full_name, sp.admission_number, u.email FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id WHERE e.course_id = $1`, [courseId]); students = st.rows;
     }
+
+    // ============================================
+    // GRADEBOOK DATA (Option 3)
+    // ============================================
     if (view === 'grades') {
       if (isTeacher) {
-        const r = await pool.query(`SELECT u.full_name as student_name, a.title, s.grade, a.max_points FROM lms_submissions s JOIN lms_assignments a ON a.id = s.assignment_id JOIN users u ON u.id = s.student_id WHERE a.course_id = $1`, [courseId]); grades = r.rows;
+        let gSql = `
+          SELECT s.id as submission_id,
+                 s.assignment_id,
+                 s.file_url,
+                 s.submitted_at,
+                 s.grade,
+                 s.feedback,
+                 u.full_name as student_name,
+                 u.id as student_id,
+                 a.title as assignment_title,
+                 a.max_points
+          FROM lms_submissions s
+          JOIN lms_assignments a ON a.id = s.assignment_id
+          JOIN users u ON u.id = s.student_id
+          WHERE a.course_id = $1
+        `;
+        const params = [courseId];
+        if (req.query.assignment_id) {
+          gSql += ` AND a.id = $2`;
+          params.push(req.query.assignment_id);
+        }
+        gSql += ` ORDER BY a.due_date ASC, u.full_name ASC`;
+        const r = await pool.query(gSql, params);
+        grades = r.rows;
       } else {
-        const r = await pool.query(`SELECT a.title, s.grade, a.max_points FROM lms_submissions s JOIN lms_assignments a ON a.id = s.assignment_id WHERE s.student_id = $1 AND a.course_id = $2`, [req.session.user.id, courseId]); grades = r.rows;
+        const r = await pool.query(`
+          SELECT s.id as submission_id,
+                 s.file_url,
+                 s.submitted_at,
+                 s.grade,
+                 s.feedback,
+                 a.title as assignment_title,
+                 a.max_points,
+                 a.due_date
+          FROM lms_submissions s
+          JOIN lms_assignments a ON a.id = s.assignment_id
+          WHERE s.student_id = $1 AND a.course_id = $2
+          ORDER BY a.due_date ASC
+        `, [req.session.user.id, courseId]);
+        grades = r.rows;
       }
     }
 
-
-    // FETCH DATA FOR COURSE HOME DASHBOARD
+    // DASHBOARD DATA
     let upcomingAssignments = [];
     let latestAnnouncements = [];
     let studentCount = 0;
 
     if (view === 'dashboard') {
-      // 1. Upcoming Assignments (for students)
       const a = await pool.query(`
-        SELECT title, due_date FROM lms_assignments 
-        WHERE course_id = $1 AND due_date > NOW() 
+        SELECT title, due_date FROM lms_assignments
+        WHERE course_id = $1 AND due_date > NOW()
         ORDER BY due_date ASC LIMIT 3
       `, [courseId]);
       upcomingAssignments = a.rows;
 
-      // 2. Latest Announcements
       const an = await pool.query(`
-        SELECT title, message, created_at FROM lms_announcements 
-        WHERE course_id = $1 OR course_id IS NULL 
+        SELECT title, message, created_at FROM lms_announcements
+        WHERE course_id = $1 OR course_id IS NULL
         ORDER BY created_at DESC LIMIT 2
       `, [courseId]);
       latestAnnouncements = an.rows;
 
-      // 3. Student Count (for teachers)
       if (isTeacher) {
         const sc = await pool.query(`SELECT COUNT(*) FROM enrollments WHERE course_id = $1`, [courseId]);
         studentCount = parseInt(sc.rows[0].count);
       }
     }
-       res.render('lms-course', { 
-      user: req.session.user, isTeacher, course, view, 
-      assignments, quizzes, grades, announcements, materials, students, 
+
+    res.render('lms-course', {
+      user: req.session.user, isTeacher, course, view,
+      assignments, quizzes, grades, announcements, materials, students,
       unreadCount: 0,
-      upcomingAssignments, latestAnnouncements, studentCount // <-- ADD THESE
+      upcomingAssignments, latestAnnouncements, studentCount,
+      selectedAssignmentId: req.query.assignment_id || null
     });
   } catch (err) { res.status(500).send("Course Error: " + err.message); }
 });
 
+// ============================================
+// ANNOUNCEMENTS
+// ============================================
 app.post('/course/:id/announcements', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
@@ -305,6 +342,9 @@ app.post('/course/:id/announcements', async (req, res) => {
   } catch (err) { res.status(500).send("Error posting announcement: " + err.message); }
 });
 
+// ============================================
+// MATERIALS — UPLOAD + TOGGLE
+// ============================================
 app.post('/course/:id/materials', upload.single('material'), async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
@@ -318,7 +358,7 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
   try {
     const fileExt = file.originalname.split('.').pop();
     const fileName = `course_${courseId}/${Date.now()}.${fileExt}`;
-    
+
     const { data, error } = await supabase.storage
       .from('course-materials')
       .upload(fileName, file.buffer, { contentType: file.mimetype });
@@ -340,21 +380,18 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
   }
 });
 
-// ============================================
-// NEW ROUTE: TOGGLE MATERIAL VISIBILITY (Step 2)
-// ============================================
 app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id, material_id } = req.params;
-  
+
   if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') {
     return res.status(403).send("Access Denied.");
   }
 
   try {
     await pool.query(`
-      UPDATE lms_materials 
-      SET is_published = NOT is_published 
+      UPDATE lms_materials
+      SET is_published = NOT is_published
       WHERE id = $1 AND course_id = $2
     `, [material_id, id]);
 
@@ -364,45 +401,21 @@ app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
   }
 });
 
-
-// CREATE ASSIGNMENT (Teacher Only)
-app.post('/course/:id/assignments', async (req, res) => {
-  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
-  const courseId = req.params.id;
-  const { title, instructions, due_date, max_points, is_published } = req.body;
-  
-  try {
-    await pool.query(`
-      INSERT INTO lms_assignments (course_id, title, instructions, due_date, max_points, is_published, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [courseId, title, instructions, due_date, Number(max_points) || 100, is_published === 'on', req.session.user.id]);
-    
-    res.redirect(`/course/${courseId}?view=assignments`);
-  } catch (err) { res.status(500).send("Create Assignment Error: " + err.message); }
-});
-
-// TOGGLE ASSIGNMENT VISIBILITY (Teacher Only)
-app.post('/course/:id/assignments/:assignment_id/toggle', async (req, res) => {
-  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
-  const { id, assignment_id } = req.params;
-  
-  try {
-    await pool.query(`
-      UPDATE lms_assignments SET is_published = NOT is_published WHERE id = $1 AND course_id = $2
-    `, [assignment_id, id]);
-    res.redirect(`/course/${id}?view=assignments`);
-  } catch (err) { res.status(500).send("Toggle Error: " + err.message); }
-});
-
-// CREATE ASSIGNMENT (Teacher Only) — with optional brief file
+// ============================================
+// ASSIGNMENTS — CREATE (SINGLE ROUTE, with multer)
+// ============================================
 app.post('/course/:id/assignments', upload.single('attachment'), async (req, res) => {
   if (!req.session.user ||
       (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
     return res.status(403).send("Access Denied.");
   }
+
   const courseId = req.params.id;
   const { title, instructions, due_date, max_points, is_published } = req.body;
   const file = req.file;
+
+  console.log('[create-assignment] body:', req.body);
+  console.log('[create-assignment] file:', file ? file.originalname : 'none');
 
   try {
     let attachmentUrl = null;
@@ -415,7 +428,11 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
       const { error: upErr } = await supabase.storage
         .from('course-materials')
         .upload(storagePath, file.buffer, { contentType: file.mimetype });
-      if (upErr) throw upErr;
+
+      if (upErr) {
+        console.error('[create-assignment] storage error:', upErr);
+        throw new Error('Storage upload failed: ' + upErr.message);
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('course-materials')
@@ -430,7 +447,10 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
         (course_id, title, instructions, due_date, max_points, is_published, created_by, attachment_url, attachment_name)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
-      courseId, title, instructions, due_date,
+      courseId,
+      title,
+      instructions || null,
+      due_date || null,
       Number(max_points) || 100,
       is_published === 'on',
       req.session.user.id,
@@ -440,9 +460,101 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
 
     res.redirect(`/course/${courseId}?view=assignments`);
   } catch (err) {
+    console.error('[create-assignment] FATAL:', err);
     res.status(500).send("Create Assignment Error: " + err.message);
   }
 });
+
+// ============================================
+// ASSIGNMENTS — TOGGLE VISIBILITY
+// ============================================
+app.post('/course/:id/assignments/:assignment_id/toggle', async (req, res) => {
+  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
+  const { id, assignment_id } = req.params;
+
+  try {
+    await pool.query(`
+      UPDATE lms_assignments SET is_published = NOT is_published WHERE id = $1 AND course_id = $2
+    `, [assignment_id, id]);
+    res.redirect(`/course/${id}?view=assignments`);
+  } catch (err) { res.status(500).send("Toggle Error: " + err.message); }
+});
+
+// ============================================
+// SUBMIT ASSIGNMENT (Student Only)
+// ============================================
+app.post('/course/:id/assignments/:assignment_id/submit', upload.single('submission'), async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id, assignment_id } = req.params;
+  const file = req.file;
+
+  if (!file) return res.redirect(`/course/${id}?view=assignments`);
+
+  try {
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `submissions/${assignment_id}_student_${req.session.user.id}_${Date.now()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('course-materials')
+      .upload(fileName, file.buffer, { contentType: file.mimetype });
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('course-materials')
+      .getPublicUrl(fileName);
+
+    await pool.query(`
+      INSERT INTO lms_submissions (assignment_id, student_id, file_url)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (assignment_id, student_id)
+      DO UPDATE SET
+        file_url = EXCLUDED.file_url,
+        submitted_at = NOW(),
+        grade = NULL,
+        feedback = NULL
+    `, [assignment_id, req.session.user.id, publicUrl]);
+
+    res.redirect(`/course/${id}?view=assignments`);
+  } catch (err) { res.status(500).send("Submission Error: " + err.message); }
+});
+
+// ============================================
+// SAVE GRADE (Teacher / Advisor only)
+// ============================================
+app.post('/course/:id/grades/:submission_id', async (req, res) => {
+  if (!req.session.user ||
+      (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
+    return res.status(403).send("Access Denied.");
+  }
+  const { id, submission_id } = req.params;
+  const { grade, feedback, assignment_id } = req.body;
+
+  try {
+    const check = await pool.query(`
+      SELECT s.id
+      FROM lms_submissions s
+      JOIN lms_assignments a ON a.id = s.assignment_id
+      JOIN course_sections cs ON cs.course_id = a.course_id
+      WHERE s.id = $1 AND a.course_id = $2 AND cs.teacher_id = $3
+    `, [submission_id, id, req.session.user.id]);
+
+    if (check.rows.length === 0) return res.status(403).send("Access Denied.");
+
+    const gradeValue = (grade === '' || grade === null || grade === undefined)
+      ? null
+      : Number(grade);
+
+    await pool.query(`
+      UPDATE lms_submissions SET grade = $1, feedback = $2 WHERE id = $3
+    `, [gradeValue, feedback || null, submission_id]);
+
+    const qs = assignment_id ? `&assignment_id=${assignment_id}` : '';
+    res.redirect(`/course/${id}?view=grades${qs}`);
+  } catch (err) {
+    res.status(500).send("Save Grade Error: " + err.message);
+  }
+});
+
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
 
 app.listen(process.env.PORT || 3001, () => console.log('LuxMind LMS running'));
