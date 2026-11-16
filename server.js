@@ -3,12 +3,12 @@
 
 
 
-const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(
+  'https://fclhdbppskmjlmbhtoug.supabase.co/rest/v1/', // <-- PASTE YOUR URL HERE
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjbGhkYnBwc2ttamxtYmh0b3VnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTc4OTI4NiwiZXhwIjoyMTA3MzY1Mjg2fQ.SbgaJj-DTR43ggyIoim_-Yl6uyI8IVbI0s20V7fwhas'       // <-- PASTE YOUR SECRET KEY HERE
+);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
-
 
 
 
