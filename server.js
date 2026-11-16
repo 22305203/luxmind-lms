@@ -4,7 +4,6 @@ const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 const session = require('express-session');
-const pgSession = require('connect-pg-simple')(session);
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -38,14 +37,25 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================
-// --- SESSION WITH POSTGRES STORE (survives Render restarts) ---
+// --- SESSION WITH SAFE POSTGRES STORE ---
 // ============================================
-app.use(session({
-  store: new pgSession({
+let sessionStore;
+
+try {
+  const pgSession = require('connect-pg-simple')(session);
+  sessionStore = new pgSession({
     pool: pool,
     tableName: 'user_sessions',
-    createTableIfMissing: true
-  }),
+    createTableIfMissing: false   // We created it manually in Step 1
+  });
+  console.log('[session] PostgreSQL session store loaded.');
+} catch (err) {
+  console.error('[session] FATAL: Failed to initialize PostgreSQL session store. Falling back to memory store.', err);
+  sessionStore = undefined; // express-session will use MemoryStore as fallback
+}
+
+app.use(session({
+  store: sessionStore,            // undefined → MemoryStore (safe fallback)
   secret: 'luxmind-secret',
   resave: false,
   saveUninitialized: false,
@@ -53,7 +63,7 @@ app.use(session({
     secure: true,
     sameSite: 'none',
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000   // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   }
 }));
 
@@ -129,7 +139,7 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// --- DEBUG: inspect current session (remove later) ---
+// --- DEBUG: inspect current session ---
 // ============================================
 app.get('/whoami', (req, res) => {
   res.json({
