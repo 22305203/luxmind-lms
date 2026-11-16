@@ -1,9 +1,10 @@
-require('dotenv').config(); // <--- MUST BE LINE 1
+require('dotenv').config(); // MUST BE LINE 1
 
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -18,7 +19,6 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4cHJqbmpka3p5a3FuYXdodWNmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDY5NTc3NiwiZXhwIjoyMTEwMjcxNzc2fQ.TxLB4kIYynPPSztEkEPDJR2aDgE7G90WPbgaiG_hx4I'
 );
 
-// Multer setup for file uploads (Max 10MB)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ============================================
@@ -36,11 +36,25 @@ const pool = new Pool({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
+
+// ============================================
+// --- SESSION WITH POSTGRES STORE (survives Render restarts) ---
+// ============================================
 app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'user_sessions',
+    createTableIfMissing: true
+  }),
   secret: 'luxmind-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, sameSite: 'none', httpOnly: true }
+  cookie: {
+    secure: true,
+    sameSite: 'none',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000   // 7 days
+  }
 }));
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
@@ -107,12 +121,23 @@ app.use((req, res, next) => {
 
   const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Bujumbura', hour: 'numeric', hour12: false });
   const hour = parseInt(formatter.format(new Date()), 10);
-
   if (hour < 12) res.locals.greeting = res.locals.t.greeting.morning;
   else if (hour < 18) res.locals.greeting = res.locals.t.greeting.afternoon;
   else res.locals.greeting = res.locals.t.greeting.evening;
 
   next();
+});
+
+// ============================================
+// --- DEBUG: inspect current session (remove later) ---
+// ============================================
+app.get('/whoami', (req, res) => {
+  res.json({
+    hasSession: !!req.session,
+    hasUser: !!req.session.user,
+    user: req.session.user || null,
+    cookie: req.headers.cookie ? 'present' : 'missing'
+  });
 });
 
 // ============================================
@@ -131,7 +156,14 @@ app.post('/login', async (req, res) => {
     const result = await pool.query(`SELECT id, full_name, role FROM users WHERE username = $1 AND password = $2`, [username, password]);
     if (result.rows.length > 0) {
       req.session.user = result.rows[0];
-      return res.redirect('/dashboard');
+      req.session.save((err) => {
+        if (err) {
+          console.error('[login] save error:', err);
+          return res.status(500).send('Session save failed');
+        }
+        return res.redirect('/dashboard');
+      });
+      return;
     }
     res.render('login', { error: 'Invalid credentials' });
   } catch (err) { res.status(500).send("Database Error: " + err.message); }
@@ -166,7 +198,6 @@ app.get('/dashboard', async (req, res) => {
         ORDER BY a.created_at DESC
       `, [lastView]);
       const unreadAnnouncements = notifRes.rows;
-      const unreadCount = unreadAnnouncements.length;
 
       const annRes = await pool.query(`SELECT a.*, u.full_name AS author_name FROM lms_announcements a LEFT JOIN users u ON u.id = a.created_by ORDER BY a.created_at DESC`);
 
@@ -175,7 +206,7 @@ app.get('/dashboard', async (req, res) => {
         courses: courseRes.rows,
         announcements: annRes.rows,
         onlineUsers: 3,
-        unreadCount: unreadCount,
+        unreadCount: unreadAnnouncements.length,
         unreadAnnouncements: unreadAnnouncements
       });
     }
@@ -203,17 +234,13 @@ app.get('/course/:id', async (req, res) => {
     if (view === 'dashboard' || view === 'assignments' || view === 'grades') {
       if (isTeacher) {
         const r = await pool.query(`
-          SELECT a.*,
-                 (SELECT COUNT(*) FROM lms_submissions s WHERE s.assignment_id = a.id) as submission_count
-          FROM lms_assignments a
-          WHERE a.course_id = $1
-          ORDER BY a.due_date ASC
+          SELECT a.*, (SELECT COUNT(*) FROM lms_submissions s WHERE s.assignment_id = a.id) as submission_count
+          FROM lms_assignments a WHERE a.course_id = $1 ORDER BY a.due_date ASC
         `, [courseId]);
         assignments = r.rows;
       } else {
         const r = await pool.query(`
-          SELECT a.*,
-                 s.id as submission_id, s.file_url as submitted_file, s.grade, s.feedback, s.submitted_at
+          SELECT a.*, s.id as submission_id, s.file_url as submitted_file, s.grade, s.feedback, s.submitted_at
           FROM lms_assignments a
           LEFT JOIN lms_submissions s ON s.assignment_id = a.id AND s.student_id = $2
           WHERE a.course_id = $1 AND a.is_published = true
@@ -243,22 +270,11 @@ app.get('/course/:id', async (req, res) => {
       const st = await pool.query(`SELECT u.id, u.full_name, sp.admission_number, u.email FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id WHERE e.course_id = $1`, [courseId]); students = st.rows;
     }
 
-    // ============================================
-    // GRADEBOOK DATA (Option 3)
-    // ============================================
     if (view === 'grades') {
       if (isTeacher) {
         let gSql = `
-          SELECT s.id as submission_id,
-                 s.assignment_id,
-                 s.file_url,
-                 s.submitted_at,
-                 s.grade,
-                 s.feedback,
-                 u.full_name as student_name,
-                 u.id as student_id,
-                 a.title as assignment_title,
-                 a.max_points
+          SELECT s.id as submission_id, s.assignment_id, s.file_url, s.submitted_at, s.grade, s.feedback,
+                 u.full_name as student_name, u.id as student_id, a.title as assignment_title, a.max_points
           FROM lms_submissions s
           JOIN lms_assignments a ON a.id = s.assignment_id
           JOIN users u ON u.id = s.student_id
@@ -274,14 +290,8 @@ app.get('/course/:id', async (req, res) => {
         grades = r.rows;
       } else {
         const r = await pool.query(`
-          SELECT s.id as submission_id,
-                 s.file_url,
-                 s.submitted_at,
-                 s.grade,
-                 s.feedback,
-                 a.title as assignment_title,
-                 a.max_points,
-                 a.due_date
+          SELECT s.id as submission_id, s.file_url, s.submitted_at, s.grade, s.feedback,
+                 a.title as assignment_title, a.max_points, a.due_date
           FROM lms_submissions s
           JOIN lms_assignments a ON a.id = s.assignment_id
           WHERE s.student_id = $1 AND a.course_id = $2
@@ -291,24 +301,15 @@ app.get('/course/:id', async (req, res) => {
       }
     }
 
-    // DASHBOARD DATA
     let upcomingAssignments = [];
     let latestAnnouncements = [];
     let studentCount = 0;
 
     if (view === 'dashboard') {
-      const a = await pool.query(`
-        SELECT title, due_date FROM lms_assignments
-        WHERE course_id = $1 AND due_date > NOW()
-        ORDER BY due_date ASC LIMIT 3
-      `, [courseId]);
+      const a = await pool.query(`SELECT title, due_date FROM lms_assignments WHERE course_id = $1 AND due_date > NOW() ORDER BY due_date ASC LIMIT 3`, [courseId]);
       upcomingAssignments = a.rows;
 
-      const an = await pool.query(`
-        SELECT title, message, created_at FROM lms_announcements
-        WHERE course_id = $1 OR course_id IS NULL
-        ORDER BY created_at DESC LIMIT 2
-      `, [courseId]);
+      const an = await pool.query(`SELECT title, message, created_at FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC LIMIT 2`, [courseId]);
       latestAnnouncements = an.rows;
 
       if (isTeacher) {
@@ -343,7 +344,7 @@ app.post('/course/:id/announcements', async (req, res) => {
 });
 
 // ============================================
-// MATERIALS — UPLOAD + TOGGLE
+// MATERIALS
 // ============================================
 app.post('/course/:id/materials', upload.single('material'), async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
@@ -359,20 +360,13 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
     const fileExt = file.originalname.split('.').pop();
     const fileName = `course_${courseId}/${Date.now()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
-      .from('course-materials')
-      .upload(fileName, file.buffer, { contentType: file.mimetype });
-
+    const { error } = await supabase.storage.from('course-materials').upload(fileName, file.buffer, { contentType: file.mimetype });
     if (error) throw error;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('course-materials')
-      .getPublicUrl(fileName);
+    const { data: { publicUrl } } = supabase.storage.from('course-materials').getPublicUrl(fileName);
 
-    await pool.query(`
-      INSERT INTO lms_materials (course_id, title, file_url, week_number, created_by)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [courseId, title, publicUrl, Number(week_number) || 1, req.session.user.id]);
+    await pool.query(`INSERT INTO lms_materials (course_id, title, file_url, week_number, created_by) VALUES ($1, $2, $3, $4, $5)`,
+      [courseId, title, publicUrl, Number(week_number) || 1, req.session.user.id]);
 
     res.redirect(`/course/${courseId}?view=materials`);
   } catch (err) {
@@ -383,39 +377,36 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
 app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id, material_id } = req.params;
-
-  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') {
-    return res.status(403).send("Access Denied.");
-  }
+  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') return res.status(403).send("Access Denied.");
 
   try {
-    await pool.query(`
-      UPDATE lms_materials
-      SET is_published = NOT is_published
-      WHERE id = $1 AND course_id = $2
-    `, [material_id, id]);
-
+    await pool.query(`UPDATE lms_materials SET is_published = NOT is_published WHERE id = $1 AND course_id = $2`, [material_id, id]);
     res.redirect(`/course/${id}?view=materials`);
-  } catch (err) {
-    res.status(500).send("Toggle Error: " + err.message);
-  }
+  } catch (err) { res.status(500).send("Toggle Error: " + err.message); }
 });
 
 // ============================================
-// ASSIGNMENTS — CREATE (SINGLE ROUTE, with multer)
+// ASSIGNMENTS — CREATE (single route, with multer + debug logs)
 // ============================================
 app.post('/course/:id/assignments', upload.single('attachment'), async (req, res) => {
+  console.log('[create-assignment] HIT', {
+    sessionExists: !!req.session,
+    hasUser: !!req.session.user,
+    role: req.session.user ? req.session.user.role : null,
+    userId: req.session.user ? req.session.user.id : null
+  });
+  console.log('[create-assignment] body:', req.body);
+  console.log('[create-assignment] file:', req.file ? req.file.originalname : 'none');
+
   if (!req.session.user ||
       (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
+    console.log('[create-assignment] AUTH FAILED — session or role wrong');
     return res.status(403).send("Access Denied.");
   }
 
   const courseId = req.params.id;
   const { title, instructions, due_date, max_points, is_published } = req.body;
   const file = req.file;
-
-  console.log('[create-assignment] body:', req.body);
-  console.log('[create-assignment] file:', file ? file.originalname : 'none');
 
   try {
     let attachmentUrl = null;
@@ -425,8 +416,7 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
       const ext = (file.originalname.split('.').pop() || 'bin').toLowerCase();
       const storagePath = `assignments/course_${courseId}/${Date.now()}.${ext}`;
 
-      const { error: upErr } = await supabase.storage
-        .from('course-materials')
+      const { error: upErr } = await supabase.storage.from('course-materials')
         .upload(storagePath, file.buffer, { contentType: file.mimetype });
 
       if (upErr) {
@@ -434,11 +424,8 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
         throw new Error('Storage upload failed: ' + upErr.message);
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('course-materials')
-        .getPublicUrl(storagePath);
-
-      attachmentUrl  = publicUrl;
+      const { data: { publicUrl } } = supabase.storage.from('course-materials').getPublicUrl(storagePath);
+      attachmentUrl = publicUrl;
       attachmentName = file.originalname;
     }
 
@@ -447,15 +434,9 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
         (course_id, title, instructions, due_date, max_points, is_published, created_by, attachment_url, attachment_name)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
-      courseId,
-      title,
-      instructions || null,
-      due_date || null,
-      Number(max_points) || 100,
-      is_published === 'on',
-      req.session.user.id,
-      attachmentUrl,
-      attachmentName
+      courseId, title, instructions || null, due_date || null,
+      Number(max_points) || 100, is_published === 'on', req.session.user.id,
+      attachmentUrl, attachmentName
     ]);
 
     res.redirect(`/course/${courseId}?view=assignments`);
@@ -466,52 +447,40 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
 });
 
 // ============================================
-// ASSIGNMENTS — TOGGLE VISIBILITY
+// ASSIGNMENTS — TOGGLE
 // ============================================
 app.post('/course/:id/assignments/:assignment_id/toggle', async (req, res) => {
   if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
   const { id, assignment_id } = req.params;
-
   try {
-    await pool.query(`
-      UPDATE lms_assignments SET is_published = NOT is_published WHERE id = $1 AND course_id = $2
-    `, [assignment_id, id]);
+    await pool.query(`UPDATE lms_assignments SET is_published = NOT is_published WHERE id = $1 AND course_id = $2`, [assignment_id, id]);
     res.redirect(`/course/${id}?view=assignments`);
   } catch (err) { res.status(500).send("Toggle Error: " + err.message); }
 });
 
 // ============================================
-// SUBMIT ASSIGNMENT (Student Only)
+// SUBMIT ASSIGNMENT (Student)
 // ============================================
 app.post('/course/:id/assignments/:assignment_id/submit', upload.single('submission'), async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id, assignment_id } = req.params;
   const file = req.file;
-
   if (!file) return res.redirect(`/course/${id}?view=assignments`);
 
   try {
     const fileExt = file.originalname.split('.').pop();
     const fileName = `submissions/${assignment_id}_student_${req.session.user.id}_${Date.now()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
-      .from('course-materials')
-      .upload(fileName, file.buffer, { contentType: file.mimetype });
+    const { error } = await supabase.storage.from('course-materials').upload(fileName, file.buffer, { contentType: file.mimetype });
     if (error) throw error;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('course-materials')
-      .getPublicUrl(fileName);
+    const { data: { publicUrl } } = supabase.storage.from('course-materials').getPublicUrl(fileName);
 
     await pool.query(`
       INSERT INTO lms_submissions (assignment_id, student_id, file_url)
       VALUES ($1, $2, $3)
       ON CONFLICT (assignment_id, student_id)
-      DO UPDATE SET
-        file_url = EXCLUDED.file_url,
-        submitted_at = NOW(),
-        grade = NULL,
-        feedback = NULL
+      DO UPDATE SET file_url = EXCLUDED.file_url, submitted_at = NOW(), grade = NULL, feedback = NULL
     `, [assignment_id, req.session.user.id, publicUrl]);
 
     res.redirect(`/course/${id}?view=assignments`);
@@ -519,11 +488,10 @@ app.post('/course/:id/assignments/:assignment_id/submit', upload.single('submiss
 });
 
 // ============================================
-// SAVE GRADE (Teacher / Advisor only)
+// SAVE GRADE
 // ============================================
 app.post('/course/:id/grades/:submission_id', async (req, res) => {
-  if (!req.session.user ||
-      (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
+  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
     return res.status(403).send("Access Denied.");
   }
   const { id, submission_id } = req.params;
@@ -531,8 +499,7 @@ app.post('/course/:id/grades/:submission_id', async (req, res) => {
 
   try {
     const check = await pool.query(`
-      SELECT s.id
-      FROM lms_submissions s
+      SELECT s.id FROM lms_submissions s
       JOIN lms_assignments a ON a.id = s.assignment_id
       JOIN course_sections cs ON cs.course_id = a.course_id
       WHERE s.id = $1 AND a.course_id = $2 AND cs.teacher_id = $3
@@ -540,19 +507,12 @@ app.post('/course/:id/grades/:submission_id', async (req, res) => {
 
     if (check.rows.length === 0) return res.status(403).send("Access Denied.");
 
-    const gradeValue = (grade === '' || grade === null || grade === undefined)
-      ? null
-      : Number(grade);
-
-    await pool.query(`
-      UPDATE lms_submissions SET grade = $1, feedback = $2 WHERE id = $3
-    `, [gradeValue, feedback || null, submission_id]);
+    const gradeValue = (grade === '' || grade === null || grade === undefined) ? null : Number(grade);
+    await pool.query(`UPDATE lms_submissions SET grade = $1, feedback = $2 WHERE id = $3`, [gradeValue, feedback || null, submission_id]);
 
     const qs = assignment_id ? `&assignment_id=${assignment_id}` : '';
     res.redirect(`/course/${id}?view=grades${qs}`);
-  } catch (err) {
-    res.status(500).send("Save Grade Error: " + err.message);
-  }
+  } catch (err) { res.status(500).send("Save Grade Error: " + err.message); }
 });
 
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
