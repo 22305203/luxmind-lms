@@ -233,7 +233,42 @@ app.get('/course/:id', async (req, res) => {
         const r = await pool.query(`SELECT a.title, s.grade, a.max_points FROM lms_submissions s JOIN lms_assignments a ON a.id = s.assignment_id WHERE s.student_id = $1 AND a.course_id = $2`, [req.session.user.id, courseId]); grades = r.rows;
       }
     }
-    res.render('lms-course', { user: req.session.user, isTeacher, course, view, assignments, quizzes, grades, announcements, materials, students, unreadCount: 0 });
+
+
+    // FETCH DATA FOR COURSE HOME DASHBOARD
+    let upcomingAssignments = [];
+    let latestAnnouncements = [];
+    let studentCount = 0;
+
+    if (view === 'dashboard') {
+      // 1. Upcoming Assignments (for students)
+      const a = await pool.query(`
+        SELECT title, due_date FROM lms_assignments 
+        WHERE course_id = $1 AND due_date > NOW() 
+        ORDER BY due_date ASC LIMIT 3
+      `, [courseId]);
+      upcomingAssignments = a.rows;
+
+      // 2. Latest Announcements
+      const an = await pool.query(`
+        SELECT title, message, created_at FROM lms_announcements 
+        WHERE course_id = $1 OR course_id IS NULL 
+        ORDER BY created_at DESC LIMIT 2
+      `, [courseId]);
+      latestAnnouncements = an.rows;
+
+      // 3. Student Count (for teachers)
+      if (isTeacher) {
+        const sc = await pool.query(`SELECT COUNT(*) FROM enrollments WHERE course_id = $1`, [courseId]);
+        studentCount = parseInt(sc.rows[0].count);
+      }
+    }
+       res.render('lms-course', { 
+      user: req.session.user, isTeacher, course, view, 
+      assignments, quizzes, grades, announcements, materials, students, 
+      unreadCount: 0,
+      upcomingAssignments, latestAnnouncements, studentCount // <-- ADD THESE
+    });
   } catch (err) { res.status(500).send("Course Error: " + err.message); }
 });
 
