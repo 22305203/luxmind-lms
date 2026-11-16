@@ -165,6 +165,8 @@ app.get('/dashboard', async (req, res) => {
       });
     } else {
       // FETCH STUDENT DATA (Your existing logic)
+         } else {
+      // FETCH STUDENT DATA
       const courseRes = await pool.query(`
         SELECT c.id, c.code, c.title, u.full_name AS teacher_name
         FROM courses c
@@ -174,6 +176,15 @@ app.get('/dashboard', async (req, res) => {
         WHERE e.user_id = $1
       `, [req.session.user.id]);
 
+      // 1. Get the last time the student checked announcements
+      const userRes = await pool.query(`SELECT last_announcements_view_at FROM users WHERE id = $1`, [req.session.user.id]);
+      const lastView = userRes.rows[0]?.last_announcements_view_at || new Date(0);
+      
+      // 2. Count announcements created AFTER that time
+      const notifRes = await pool.query(`SELECT COUNT(*) FROM lms_announcements WHERE created_at > $1`, [lastView]);
+      const unreadCount = parseInt(notifRes.rows[0].count);
+
+      // 3. Fetch announcements for the feed
       const annRes = await pool.query(`
         SELECT a.*, u.full_name AS author_name 
         FROM lms_announcements a
@@ -185,7 +196,8 @@ app.get('/dashboard', async (req, res) => {
         user: req.session.user, 
         courses: courseRes.rows,
         announcements: annRes.rows,
-        onlineUsers: 3
+        onlineUsers: 3,
+        unreadCount: unreadCount // <--- Pass to the UI
       });
     }
   } catch (err) {
@@ -237,7 +249,11 @@ app.get('/course/:id', async (req, res) => {
       const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]);
       quizzes = r.rows;
     }
-    if (view === 'announcements') {
+      if (view === 'announcements') {
+       // IF STUDENT OPENS THE PAGE, CLEAR THE RED BELL
+       if (!isTeacher) {
+         await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]);
+       }
        const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]);
        announcements = r.rows;
     }

@@ -102,7 +102,7 @@
     .lang-select { background: var(--bg-surface); border: 1px solid var(--border); padding: 10px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; color: var(--text-main); outline: none; cursor: pointer; box-shadow: var(--shadow-sm); }
     .icon-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-main); display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-sm); position: relative; transition: 0.2s; }
     .icon-btn:hover { background: var(--bg-body); }
-    .notif-badge { position: absolute; top: 10px; right: 12px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; border: 2px solid var(--bg-surface); }
+    .notif-badge { position: absolute; top: 10px; right: 12px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; border: 2px solid var(--bg-surface);display: flex; align-items: center; justify-content: center; padding: 2px; }
 
     /* ================= GRID LAYOUT ================= */
     .grid-container { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
@@ -249,9 +249,11 @@
           <i class="fa-solid fa-moon" id="themeIcon"></i>
         </button>
 
-        <button class="icon-btn">
+                <button class="icon-btn">
           <i class="fa-regular fa-bell"></i>
-          <span class="notif-badge"></span>
+          <% if (unreadCount && unreadCount > 0) { %>
+            <span class="notif-badge" style="display: flex;"> <%= unreadCount %> </span>
+          <% } %>
         </button>
       </div>
     </header>
