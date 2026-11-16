@@ -1,26 +1,30 @@
+require('dotenv').config(); // <--- MUST BE LINE 1
 
-
-
-
-
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(
-  'https://fclhdbppskmjlmbhtoug.supabase.co/rest/v1/', // <-- PASTE YOUR URL HERE
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjbGhkYnBwc2ttamxtYmh0b3VnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTc4OTI4NiwiZXhwIjoyMTA3MzY1Mjg2fQ.SbgaJj-DTR43ggyIoim_-Yl6uyI8IVbI0s20V7fwhas'       // <-- PASTE YOUR SECRET KEY HERE
-);
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
-
-
-require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 const session = require('express-session');
+const multer = require('multer'); // <--- ADDED THIS
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.set('trust proxy', 1);
 
+// ============================================
+// --- SUPABASE CONFIGURATION ---
+// ============================================
+// CRITICAL: Remove /rest/v1/ from the URL!
+const supabase = createClient(
+  'https://fclhdbppskmjlmbhtoug.supabase.co', 
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjbGhkYnBwc2ttamxtYmh0b3VnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTc4OTI4NiwiZXhwIjoyMTA3MzY1Mjg2fQ.SbgaJj-DTR43ggyIoim_-Yl6uyI8IVbI0s20V7fwhas'
+);
+
+// Multer setup for file uploads (Max 10MB)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// ============================================
+// --- DATABASE CONFIGURATION ---
+// ============================================
 const pool = new Pool({
   user: 'postgres.fclhdbppskmjlmbhtoug',
   password: 'LuxMindAdmin2026',
@@ -42,6 +46,9 @@ app.use(session({
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
+// ============================================
+// --- i18n & TIMEZONE MIDDLEWARE ---
+// ============================================
 const translations = {
   en: {
     portal_title: "LUXMIND PORTAL",
@@ -99,6 +106,7 @@ app.use((req, res, next) => {
   res.locals.lang = lang;
   res.locals.t = translations[lang];
   
+  // Force Burundi Time (UTC+2)
   const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Bujumbura', hour: 'numeric', hour12: false });
   const hour = parseInt(formatter.format(new Date()), 10);
   
@@ -109,6 +117,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ============================================
+// --- ROUTES ---
+// ============================================
 app.get('/set-language/:lang', (req, res) => {
   if (translations[req.params.lang]) req.session.language = req.params.lang;
   res.redirect(req.get('referer') || '/dashboard');
@@ -148,7 +159,7 @@ app.get('/dashboard', async (req, res) => {
 
       const userRes = await pool.query(`SELECT last_announcements_view_at FROM users WHERE id = $1`, [req.session.user.id]);
       const lastView = userRes.rows[0]?.last_announcements_view_at || new Date(0);
-            // 2. Fetch the actual unread announcements for the dropdown
+      
       const notifRes = await pool.query(`
         SELECT a.id, a.title, a.message, a.created_at, c.code as course_code, c.id as course_id
         FROM lms_announcements a
@@ -161,13 +172,13 @@ app.get('/dashboard', async (req, res) => {
 
       const annRes = await pool.query(`SELECT a.*, u.full_name AS author_name FROM lms_announcements a LEFT JOIN users u ON u.id = a.created_by ORDER BY a.created_at DESC`);
 
-           return res.render('lms-dashboard', { 
+      return res.render('lms-dashboard', { 
         user: req.session.user, 
         courses: courseRes.rows,
         announcements: annRes.rows,
         onlineUsers: 3,
         unreadCount: unreadCount,
-        unreadAnnouncements: unreadAnnouncements // <--- ADD THIS
+        unreadAnnouncements: unreadAnnouncements
       });
     }
   } catch (err) { res.status(500).send("Dashboard Error: " + err.message); }
@@ -244,19 +255,16 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
     const fileExt = file.originalname.split('.').pop();
     const fileName = `course_${courseId}/${Date.now()}.${fileExt}`;
     
-    // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from('course-materials')
       .upload(fileName, file.buffer, { contentType: file.mimetype });
 
     if (error) throw error;
 
-    // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('course-materials')
       .getPublicUrl(fileName);
 
-    // Save to Database
     await pool.query(`
       INSERT INTO lms_materials (course_id, title, file_url, week_number, created_by)
       VALUES ($1, $2, $3, $4, $5)
@@ -269,4 +277,5 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
 });
 
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
+
 app.listen(process.env.PORT || 3001, () => console.log('LuxMind LMS running'));
