@@ -131,20 +131,27 @@
 
   <!-- Top Navbar -->
   <header class="topbar">
-    <div class="topbar-left">
+        <div class="topbar-left">
       <!-- HAMBURGER MENU -->
       <button class="mobile-menu-btn" id="menuBtn"><i class="fa-solid fa-bars"></i></button>
       
-      <!-- BACK BUTTON -->
-      <a href="/dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Dashboard</a>
-      
       <div class="brand">
-        <div class="brand-mark"><i class="fa-solid fa-chalkboard-user"></i></div>
-        <div class="brand-name">Teacher Portal</div>
+        <!-- Dynamic Icon -->
+        <div class="brand-mark"><i class="fa-solid <%= isTeacher ? 'fa-chalkboard-user' : 'fa-book-open' %>"></i></div>
+        <!-- Dynamic Text -->
+        <div class="brand-name"><%= isTeacher ? 'Teacher Portal' : 'Student Portal' %></div>
       </div>
     </div>
-    
     <div class="topbar-right">
+
+
+           <!-- Notification Bell -->
+      <button class="icon-btn" onclick="window.location.href='/dashboard'" title="Check Announcements">
+        <i class="fa-regular fa-bell"></i>
+        <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
+          <span class="notif-badge" style="position: absolute; top: 6px; right: 8px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; border: 2px solid var(--bg-surface);"></span>
+        <% } %>
+      </button>
       <select class="lang-select" onchange="window.location.href='/set-language/'+this.value">
         <option value="en" <%= lang === 'en' ? 'selected' : '' %>>🇬🇧 EN</option>
         <option value="fr" <%= lang === 'fr' ? 'selected' : '' %>>🇫🇷 FR</option>
@@ -200,6 +207,16 @@
       
       <!-- Middle Content Area -->
       <main class="main-content">
+      <!-- Middle Content Area -->
+      <main class="main-content">
+        
+        <!-- NEW LOCATION FOR BACK BUTTON -->
+        <div style="margin-bottom: 20px;">
+          <a href="/dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <% if (view === 'dashboard') { %>
         
         <!-- DASHBOARD VIEW -->
         <% if (view === 'dashboard') { %>
