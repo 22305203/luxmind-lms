@@ -134,12 +134,27 @@ app.get('/dashboard', async (req, res) => {
 
       const userRes = await pool.query(`SELECT last_announcements_view_at FROM users WHERE id = $1`, [req.session.user.id]);
       const lastView = userRes.rows[0]?.last_announcements_view_at || new Date(0);
-      const notifRes = await pool.query(`SELECT COUNT(*) FROM lms_announcements WHERE created_at > $1`, [lastView]);
-      const unreadCount = parseInt(notifRes.rows[0].count);
+            // 2. Fetch the actual unread announcements for the dropdown
+      const notifRes = await pool.query(`
+        SELECT a.id, a.title, a.message, a.created_at, c.code as course_code, c.id as course_id
+        FROM lms_announcements a
+        JOIN courses c ON c.id = a.course_id
+        WHERE a.created_at > $1
+        ORDER BY a.created_at DESC
+      `, [lastView]);
+      const unreadAnnouncements = notifRes.rows;
+      const unreadCount = unreadAnnouncements.length;
 
       const annRes = await pool.query(`SELECT a.*, u.full_name AS author_name FROM lms_announcements a LEFT JOIN users u ON u.id = a.created_by ORDER BY a.created_at DESC`);
 
-      return res.render('lms-dashboard', { user: req.session.user, courses: courseRes.rows, announcements: annRes.rows, onlineUsers: 3, unreadCount: unreadCount });
+           return res.render('lms-dashboard', { 
+        user: req.session.user, 
+        courses: courseRes.rows,
+        announcements: annRes.rows,
+        onlineUsers: 3,
+        unreadCount: unreadCount,
+        unreadAnnouncements: unreadAnnouncements // <--- ADD THIS
+      });
     }
   } catch (err) { res.status(500).send("Dashboard Error: " + err.message); }
 });
