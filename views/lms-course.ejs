@@ -209,24 +209,41 @@
           <p style="color: var(--text-muted); font-size:14px;">Welcome to your course command center. Select a tool from the sidebar to manage your class.</p>
         <% } %>
 
-        <!-- ANNOUNCEMENTS VIEW -->
-        <% if (view === 'announcements') { %>
-          <div class="section-header">
-            <h1 class="section-title">Course Announcements</h1>
-            <button class="btn"><i class="fa-solid fa-plus"></i> Post Announcement</button>
+             <!-- ANNOUNCEMENTS VIEW -->
+      <% if (view === 'announcements') { %>
+        <div class="section-header">
+          <h1 class="section-title">Course Announcements</h1>
+        </div>
+
+        <!-- TEACHER ONLY: Post Announcement Form -->
+        <% if (isTeacher) { %>
+          <div class="item-card" style="display: block; margin-bottom: 24px; background: var(--bg-surface); border-color: var(--primary);">
+            <h4 style="margin-bottom: 12px; color: var(--primary);"><i class="fa-solid fa-pen-to-square"></i> Post a New Announcement</h4>
+            <form action="/course/<%= course.id %>/announcements" method="POST">
+              <input type="text" name="title" placeholder="Announcement Title (e.g., Exam Moved)" required 
+                     style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit;">
+              <textarea name="message" placeholder="Type your message to the students here..." required rows="3" 
+                        style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text-main); font-family: inherit; resize: vertical;"></textarea>
+              <button type="submit" class="btn"><i class="fa-solid fa-paper-plane"></i> Publish Announcement</button>
+            </form>
           </div>
-          <% if (announcements.length === 0) { %>
-             <p style="color:var(--text-muted);">No announcements posted yet.</p>
-          <% } else { %>
-            <% announcements.forEach(a => { %>
-              <div class="item-card" style="display:block;">
-                <h4><%= a.title %></h4>
-                <p style="color: var(--text-muted); margin-top: 8px; font-size:13px;"><%= a.message %></p>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:12px;"><%= new Date(a.created_at).toLocaleString() %></div>
-              </div>
-            <% }); %>
-          <% } %>
         <% } %>
+
+        <!-- List of Announcements (Visible to everyone) -->
+        <% if (announcements.length === 0) { %>
+           <p style="color:var(--text-muted); font-size: 13px;">No announcements posted yet.</p>
+        <% } else { %>
+          <% announcements.forEach(a => { %>
+            <div class="item-card" style="display:block;">
+              <h4 style="color: var(--text-main); font-size: 16px;"><%= a.title %></h4>
+              <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px; line-height: 1.6;"><%= a.message %></p>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px;">
+                <i class="fa-regular fa-clock"></i> Posted on <%= new Date(a.created_at).toLocaleString() %>
+              </div>
+            </div>
+          <% }); %>
+        <% } %>
+      <% } %>
 
         <!-- MATERIALS VIEW -->
         <% if (view === 'materials') { %>

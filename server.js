@@ -288,6 +288,38 @@ app.get('/course/:id', async (req, res) => {
   }
 });
 
+
+
+// POST NEW ANNOUNCEMENT (Teacher Only)
+app.post('/course/:id/announcements', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const courseId = req.params.id;
+  const { title, message } = req.body;
+
+  // Ensure only teachers/advisors can post
+  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') {
+    return res.status(403).send("Access Denied.");
+  }
+
+  if (!title || !message) {
+    return res.redirect(`/course/${courseId}?view=announcements`);
+  }
+
+  try {
+    await pool.query(`
+      INSERT INTO lms_announcements (course_id, title, message, created_by)
+      VALUES ($1, $2, $3, $4)
+    `, [courseId, title, message, req.session.user.id]);
+
+    res.redirect(`/course/${courseId}?view=announcements`);
+  } catch (err) {
+    res.status(500).send("Error posting announcement: " + err.message);
+  }
+});
+
+
+
+
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/login');
