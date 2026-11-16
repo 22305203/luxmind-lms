@@ -94,8 +94,14 @@ app.use((req, res, next) => {
   res.locals.lang = lang;
   res.locals.t = translations[lang];
   
-  // Time-based greeting
-  const hour = new Date().getHours();
+  // Force Burundi Time (UTC+2)
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Bujumbura',
+    hour: 'numeric',
+    hour12: false
+  });
+  const hour = parseInt(formatter.format(new Date()), 10);
+  
   if (hour < 12) res.locals.greeting = res.locals.t.greeting.morning;
   else if (hour < 18) res.locals.greeting = res.locals.t.greeting.afternoon;
   else res.locals.greeting = res.locals.t.greeting.evening;
