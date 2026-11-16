@@ -371,13 +371,25 @@
           <% if (isTeacher) { %>
             <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px;">
               <h3 style="font-size: 18px; color: var(--primary); margin-bottom: 24px;"><i class="fa-solid fa-plus"></i> Create New Assignment</h3>
-              <form action="/course/<%= course.id %>/assignments" method="POST">
+
+              <!-- STEP 3: enctype + attachment field added -->
+              <form action="/course/<%= course.id %>/assignments" method="POST" enctype="multipart/form-data">
                 <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                   <input type="text" name="title" class="form-input" placeholder="Assignment Title" required>
                   <input type="datetime-local" name="due_date" class="form-input" required>
                   <input type="number" name="max_points" class="form-input" placeholder="Max Points (e.g. 100)" required>
                 </div>
+
                 <textarea name="instructions" class="form-input" rows="3" placeholder="Instructions for students..." style="margin-bottom: 16px;"></textarea>
+
+                <!-- STEP 3: Brief attachment upload (optional) -->
+                <div class="upload-zone" style="padding: 22px; margin-bottom: 16px;">
+                  <input type="file" name="attachment" accept=".pdf,.doc,.docx,.ppt,.pptx,.zip">
+                  <i class="fa-solid fa-paperclip upload-icon" style="font-size: 30px; margin-bottom: 8px;"></i>
+                  <h3 style="font-size: 15px;">Attach Assignment Brief (Optional)</h3>
+                  <p style="font-size: 12px;">PDF, DOCX, PPTX, ZIP — students can view &amp; download this file</p>
+                </div>
+
                 <div style="display: flex; align-items: center; gap: 24px;">
                   <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer;">
                     <input type="checkbox" name="is_published" style="width: 18px; height: 18px; accent-color: var(--primary);"> Publish immediately to students
@@ -414,6 +426,23 @@
                   <div class="mat-meta" style="margin-bottom: 16px;">
                     <i class="fa-regular fa-clock"></i> Due: <%= new Date(a.due_date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %>
                   </div>
+
+                  <!-- STEP 4: Assignment brief — View / Download (both roles) -->
+                  <% if (a.attachment_url) { %>
+                    <div style="margin-bottom: 14px;">
+                      <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
+                        <i class="fa-solid fa-paperclip"></i> Assignment Brief
+                      </div>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <a href="<%= a.attachment_url %>" target="_blank" class="btn-action btn-view">
+                          <i class="fa-solid fa-eye"></i> View
+                        </a>
+                        <a href="<%= a.attachment_url %>?download=<%= encodeURIComponent(a.attachment_name || 'brief') %>" class="btn-action btn-download">
+                          <i class="fa-solid fa-download"></i> Download
+                        </a>
+                      </div>
+                    </div>
+                  <% } %>
 
                   <!-- TEACHER ACTIONS -->
                   <% if (isTeacher) { %>
