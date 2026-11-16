@@ -230,14 +230,39 @@
                  if(ext === 'ppt' || ext === 'pptx') { icon = 'fa-file-powerpoint'; color = '#f59e0b'; }
                  if(ext === 'zip') { icon = 'fa-file-zipper'; color = '#8b5cf6'; }
               %>
-                <div class="material-card">
+                                <div class="material-card">
                   <div class="mat-icon-wrapper">
                     <div class="mat-icon" style="color: <%= color %>; background: <%= color %>15;"><i class="fa-solid <%= icon %>"></i></div>
-                    <span class="mat-week">Week <%= m.week_number %></span>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                      <% if (!m.is_published) { %>
+                        <span style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase;">Hidden</span>
+                      <% } %>
+                      <span class="mat-week">Week <%= m.week_number %></span>
+                    </div>
                   </div>
                   <h4 class="mat-title"><%= m.title %></h4>
                   <div class="mat-meta"><i class="fa-regular fa-calendar"></i> Uploaded <%= new Date(m.created_at).toLocaleDateString() %></div>
                   
+                  <!-- VIEW & DOWNLOAD BUTTONS -->
+                  <div class="mat-actions">
+                    <a href="<%= m.file_url %>" target="_blank" class="btn-action btn-view">
+                      <i class="fa-solid fa-eye"></i> View
+                    </a>
+                    <a href="<%= m.file_url %>?download=true" class="btn-action btn-download">
+                      <i class="fa-solid fa-download"></i> Download
+                    </a>
+                  </div>
+
+                  <!-- TEACHER TOGGLE BUTTON -->
+                  <% if (isTeacher) { %>
+                    <form action="/course/<%= course.id %>/materials/<%= m.id %>/toggle" method="POST" style="margin-top: 12px;">
+                      <button type="submit" class="btn" style="width: 100%; justify-content: center; background: <%= m.is_published ? '#f59e0b' : '#10b981' %>; color: white; border: none; padding: 10px; font-size: 12px;">
+                        <i class="fa-solid <%= m.is_published ? 'fa-eye-slash' : 'fa-eye' %>"></i> 
+                        <%= m.is_published ? 'Hide from Students' : 'Publish to Students' %>
+                      </button>
+                    </form>
+                  <% } %>
+                </div>
                   <!-- VIEW & DOWNLOAD BUTTONS -->
                   <div class="mat-actions">
                     <a href="<%= m.file_url %>" target="_blank" class="btn-action btn-view">
