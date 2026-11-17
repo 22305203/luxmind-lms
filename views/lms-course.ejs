@@ -104,6 +104,12 @@
 
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; display: none; opacity: 0; transition: opacity 0.3s; }
     .overlay.active { display: block; opacity: 1; }
+
+    /* Custom table styles for Gradebook */
+    .grade-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .grade-table th { padding: 16px 12px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid var(--border); }
+    .grade-table td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    .grade-table tr:last-child td { border-bottom: none; }
     
     @media (max-width: 1200px) { .right-sidebar { display: none; } }
     @media (max-width: 900px) {
@@ -115,6 +121,7 @@
       .material-grid { grid-template-columns: 1fr; }
       .upload-form-grid { grid-template-columns: 1fr; }
       .bento-grid { grid-template-columns: 1fr !important; }
+      .grade-table { display: block; overflow-x: auto; white-space: nowrap; }
     }
   </style>
 </head>
@@ -201,14 +208,14 @@
             
             <div>
               <% if (isTeacher) { %>
-                <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px;">
+                <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border);">
                   <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-users" style="color: var(--primary);"></i> Class Roster</h3>
                   <div style="font-size: 36px; font-weight: 800; color: var(--primary); font-family: 'Plus Jakarta Sans';"> <%= studentCount %> </div>
                   <p style="color: var(--text-muted); font-size: 13px;">Students Enrolled</p>
                   <a href="?view=students" class="btn" style="margin-top: 16px; width: 100%; justify-content: center;">View Roster</a>
                 </div>
               <% } else { %>
-                <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px;">
+                <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border);">
                   <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Upcoming Deadlines</h3>
                   <% if (typeof upcomingAssignments === 'undefined' || upcomingAssignments.length === 0) { %>
                     <p style="color: var(--text-muted); font-size: 13px;">No upcoming assignments. You are all caught up!</p>
@@ -231,7 +238,7 @@
             </div>
 
             <div>
-              <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px;">
+              <div class="item-card" style="display: block; padding: 24px; margin-bottom: 24px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border);">
                 <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-bullhorn" style="color: var(--primary);"></i> Latest Announcement</h3>
                 <% if (typeof latestAnnouncements === 'undefined' || latestAnnouncements.length === 0) { %>
                   <p style="color: var(--text-muted); font-size: 13px;">No announcements yet.</p>
@@ -242,7 +249,7 @@
                 <% } %>
               </div>
 
-              <div class="item-card" style="display: block; padding: 24px;">
+              <div class="item-card" style="display: block; padding: 24px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border);">
                 <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--text-main);"><i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Quick Actions</h3>
                 <div style="display: grid; gap: 10px;">
                   <% if (isTeacher) { %>
@@ -268,7 +275,7 @@
           </div>
 
           <% if (isTeacher) { %>
-            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px;">
+            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px; border-radius: 12px; border: 1px solid var(--border);">
               <h3 style="font-size: 18px; color: var(--primary); margin-bottom: 24px;"><i class="fa-solid fa-cloud-arrow-up"></i> Upload New Material</h3>
               <form action="/course/<%= course.id %>/materials" method="POST" enctype="multipart/form-data">
                 <div class="upload-form-grid">
@@ -348,7 +355,7 @@
           </div>
 
           <% if (isTeacher) { %>
-            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px;">
+            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px; border-radius: 12px; border: 1px solid var(--border);">
               <h3 style="font-size: 18px; color: var(--primary); margin-bottom: 24px;"><i class="fa-solid fa-plus"></i> Create New Assignment</h3>
 
               <form action="/course/<%= course.id %>/assignments" method="POST" enctype="multipart/form-data">
@@ -465,7 +472,7 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- QUIZZES & EXAMS VIEW  (moved OUT of materials) -->
+        <!-- QUIZZES & EXAMS VIEW -->
         <!-- ============================================== -->
         <% if (view === 'quizzes') { %>
           <% if (isTeacher && activeQuiz) { %>
@@ -476,9 +483,87 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- OTHER VIEWS PLACEHOLDER -->
+        <!-- GRADES VIEW (NEWLY ADDED) -->
         <!-- ============================================== -->
-        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes') { %>
+        <% if (view === 'grades') { %>
+          <div class="section-header">
+            <h1 class="section-title">Gradebook</h1>
+          </div>
+
+          <div class="item-card" style="display: block; padding: 24px; background: var(--bg-surface); border-radius: 16px; border: 1px solid var(--border); overflow-x: auto;">
+            <% if (typeof grades !== 'undefined' && grades.length > 0) { %>
+              <table class="grade-table">
+                <thead>
+                  <tr>
+                    <% if (isTeacher) { %>
+                      <th>Student</th>
+                    <% } %>
+                    <th>Assignment</th>
+                    <th>Submitted At</th>
+                    <th>Grade</th>
+                    <th>File</th>
+                    <% if (isTeacher) { %>
+                      <th>Action</th>
+                    <% } else { %>
+                      <th>Feedback</th>
+                    <% } %>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% grades.forEach(g => { %>
+                    <tr>
+                      <% if (isTeacher) { %>
+                        <td style="font-weight: 600; color: var(--text-main);"><%= g.student_name %></td>
+                      <% } %>
+                      <td style="font-weight: 600; color: var(--text-main);"><%= g.assignment_title %></td>
+                      <td style="color: var(--text-muted);">
+                        <%= g.submitted_at ? new Date(g.submitted_at).toLocaleDateString() : 'Not submitted' %>
+                      </td>
+                      <td style="font-weight: bold; color: <%= g.grade !== null ? '#10b981' : '#ef4444' %>;">
+                        <%= g.grade !== null ? g.grade : 'Pending' %> / <%= g.max_points %>
+                      </td>
+                      <td>
+                        <% if (g.file_url) { %>
+                          <a href="<%= g.file_url %>" target="_blank" class="btn-action btn-view" style="display: inline-flex; width: auto; padding: 6px 12px; border-radius: 6px;"><i class="fa-solid fa-eye"></i> View</a>
+                        <% } else { %>
+                          <span style="color: var(--text-muted); font-size: 12px;">None</span>
+                        <% } %>
+                      </td>
+                      
+                      <!-- Teacher Inline Grading Form -->
+                      <% if (isTeacher) { %>
+                        <td>
+                          <form action="/course/<%= course.id %>/grades/<%= g.submission_id %>" method="POST" style="display: flex; gap: 8px; align-items: center;">
+                            <input type="hidden" name="assignment_id" value="<%= g.assignment_id %>">
+                            <input type="number" name="grade" value="<%= g.grade || '' %>" placeholder="Score" class="form-input" style="width: 70px; padding: 6px 10px; font-size: 12px;" max="<%= g.max_points %>" min="0">
+                            <input type="text" name="feedback" value="<%= g.feedback || '' %>" placeholder="Feedback" class="form-input" style="width: 140px; padding: 6px 10px; font-size: 12px;">
+                            <button type="submit" class="btn" style="padding: 6px 12px; font-size: 12px;">Save</button>
+                          </form>
+                        </td>
+                      <% } else { %>
+                        <!-- Student Feedback View -->
+                        <td style="color: var(--text-muted); font-size: 12px;">
+                          <%= g.feedback || 'No feedback yet' %>
+                        </td>
+                      <% } %>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            <% } else { %>
+              <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <i class="fa-solid fa-clipboard-list" style="font-size: 48px; margin-bottom: 16px; color: var(--border);"></i>
+                <h3 style="color: var(--text-main); margin-bottom: 8px;">No Grades Available</h3>
+                <p>No assignment submissions have been graded yet.</p>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
+
+        <!-- ============================================== -->
+        <!-- OTHER VIEWS PLACEHOLDER (Updated to exclude grades) -->
+        <!-- ============================================== -->
+        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades') { %>
           <div class="section-header">
             <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %></h1>
           </div>
