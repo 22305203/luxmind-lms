@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>70% Eligibility | <%= course.code %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    body { background: #f4f6fa; padding: 24px; font-family: 'Inter', sans-serif; margin: 0; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #fff; background: #4f46e5; padding: 10px 18px; border-radius: 8px; text-decoration: none; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .card { background: white; border-radius: 12px; padding: 24px; border-top: 4px solid #cbd5e1; }
+    .card.green { border-top-color: #10b981; }
+    .card.red { border-top-color: #ef4444; }
+    h2 { font-size: 18px; margin-bottom: 16px; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 12px; font-size: 12px; color: #64748b; border-bottom: 1px solid #e2e8f0; text-transform: uppercase;}
+    td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 800; }
+    .badge.green { background: #dcfce3; color: #10b981; }
+    .badge.red { background: #fee2e2; color: #ef4444; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <h1 style="font-size: 24px; font-weight: 800;"><%= course.code %> Exam Eligibility</h1>
+    <a href="/course/<%= course.id %>/attendance" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Attendance</a>
+  </div>
+
+  <div style="margin-bottom: 24px; background: white; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block;">
+    <strong>Total Sessions Held:</strong> <%= totalSessions %> Hours
+  </div>
+
+  <div class="grid">
+    <!-- Eligible -->
+    <div class="card green">
+      <h2><i class="fa-solid fa-check-circle" style="color: #10b981;"></i> Eligible for Exam (≥ 70%)</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Attended</th><th>%</th></tr></thead>
+        <tbody>
+          <% if (eligible.length === 0) { %>
+            <tr><td colspan="4" style="text-align: center; color: #64748b;">No students meet the criteria yet.</td></tr>
+          <% } %>
+          <% eligible.forEach(st => { %>
+            <tr>
+              <td style="font-weight: 600;"><%= st.admission_number %></td>
+              <td><%= st.full_name %></td>
+              <td><%= st.attended %> / <%= totalSessions %></td>
+              <td><span class="badge green"><%= st.percentage %>%</span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Ineligible -->
+    <div class="card red">
+      <h2><i class="fa-solid fa-xmark-circle" style="color: #ef4444;"></i> Not Eligible (< 70%)</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Attended</th><th>%</th></tr></thead>
+        <tbody>
+          <% if (ineligible.length === 0) { %>
+            <tr><td colspan="4" style="text-align: center; color: #64748b;">All students are eligible!</td></tr>
+          <% } %>
+          <% ineligible.forEach(st => { %>
+            <tr>
+              <td style="font-weight: 600;"><%= st.admission_number %></td>
+              <td><%= st.full_name %></td>
+              <td><%= st.attended %> / <%= totalSessions %></td>
+              <td><span class="badge red"><%= st.percentage %>%</span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Attendance | <%= course.code %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    body { background: #f4f6fa; padding: 24px; font-family: 'Inter', sans-serif; margin: 0; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #fff; background: #4f46e5; padding: 10px 18px; border-radius: 8px; text-decoration: none; }
+    .card { background: white; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0; text-align: center; margin-bottom: 24px; }
+    .percentage { font-size: 64px; font-weight: 800; margin: 16px 0; }
+    .eligible { color: #10b981; }
+    .not-eligible { color: #ef4444; }
+    .table-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 16px; background: #f8fafc; font-size: 12px; color: #64748b; text-transform: uppercase; }
+    td { padding: 16px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <h1 style="font-size: 24px; font-weight: 800;">My Attendance: <%= course.title %></h1>
+    <a href="/course/<%= course.id %>?view=dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Course</a>
+  </div>
+
+  <div class="card">
+    <h2 style="color: #64748b; font-size: 16px;">Overall Attendance Percentage</h2>
+    <div class="percentage <%= isEligible ? 'eligible' : 'not-eligible' %>">
+      <%= percentage %>%
+    </div>
+    
+    <p style="font-weight: 600; color: #64748b;">You attended <%= attended %> out of <%= totalSessions %> total hours.</p>
+    
+    <div style="margin-top: 24px; padding: 16px; border-radius: 8px; <%= isEligible ? 'background: #dcfce3; color: #059669;' : 'background: #fee2e2; color: #dc2626;' %> font-weight: 700;">
+      <% if (isEligible) { %>
+        <i class="fa-solid fa-circle-check"></i> You are eligible to take the final exam (≥ 70%).
+      <% } else { %>
+        <i class="fa-solid fa-triangle-exclamation"></i> Warning: You are below 70%. You will NOT be allowed to take the final exam.
+      <% } %>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Hour</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (logs.length === 0) { %>
+          <tr><td colspan="3" style="text-align: center; color: #64748b;">No attendance records found.</td></tr>
+        <% } %>
+        <% logs.forEach(log => { %>
+          <tr>
+            <td style="font-weight: 600;"><%= new Date(log.date).toLocaleDateString('en-GB') %></td>
+            <td>Hour <%= log.hour_number %></td>
+            <td>
+              <% if (log.status === 'present') { %>
+                <span style="color: #10b981; font-weight: 700;"><i class="fa-solid fa-check"></i> Present</span>
+              <% } else if (log.status === 'absent') { %>
+                <span style="color: #ef4444; font-weight: 700;"><i class="fa-solid fa-xmark"></i> Absent</span>
+              <% } else { %>
+                <span style="color: #94a3b8;">Not Marked (Absent)</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>
