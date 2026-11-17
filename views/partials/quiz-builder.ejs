@@ -50,15 +50,15 @@
   <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; margin-bottom:16px;">
     <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Opens
       <input type="datetime-local" name="open_at" class="form-input" style="margin-top:4px;"
-             value="<%= activeQuiz.open_at ? new Date(activeQuiz.open_at).toISOString().slice(0,16) : '' %>">
+             value="<%= toBjInput(activeQuiz.open_at) %>">
     </label>
     <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Closes
       <input type="datetime-local" name="close_at" class="form-input" style="margin-top:4px;"
-             value="<%= activeQuiz.close_at ? new Date(activeQuiz.close_at).toISOString().slice(0,16) : '' %>">
+             value="<%= toBjInput(activeQuiz.close_at) %>">
     </label>
     <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Grades Released
       <input type="datetime-local" name="grade_release_at" class="form-input" style="margin-top:4px;"
-             value="<%= activeQuiz.grade_release_at ? new Date(activeQuiz.grade_release_at).toISOString().slice(0,16) : '' %>">
+             value="<%= toBjInput(activeQuiz.grade_release_at) %>">
     </label>
     <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Pass Mark
       <input type="number" name="pass_mark" class="form-input" min="0" style="margin-top:4px;"
