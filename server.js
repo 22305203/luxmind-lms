@@ -1784,19 +1784,47 @@ app.get('/course/:id/attendance', async (req, res) => {
   const courseId = req.params.id;
   const isTeacher = isTeacherRole(req.session.user);
 
-  if (!isTeacher) {
-    return res.status(403).send("Access Denied: You are logged in as a student, not a teacher.");
-  }
-
   try {
+    const courseRes = await pool.query(`SELECT id, code, title, credits FROM courses WHERE id = $1`, [courseId]);
+    if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
+    const course = courseRes.rows[0];
+
+    // ==========================================
+    // STUDENT VIEW
+    // ==========================================
+    if (!isTeacher) {
+      const totalSessionsRes = await pool.query(`SELECT COUNT(*) as total FROM lms_attendance_sessions WHERE course_id = $1`, [courseId]);
+      const totalSessions = parseInt(totalSessionsRes.rows[0].total);
+
+      const attendedRes = await pool.query(`
+        SELECT COUNT(*) as attended FROM lms_attendance_records r
+        JOIN lms_attendance_sessions s ON s.id = r.session_id
+        WHERE s.course_id = $1 AND r.student_id = $2 AND r.status = 'present'
+      `, [courseId, req.session.user.id]);
+      const attended = parseInt(attendedRes.rows[0].attended);
+
+      const percentage = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0;
+      const isEligible = percentage >= 70;
+
+      const logsRes = await pool.query(`
+        SELECT s.date, s.hour_number, r.status FROM lms_attendance_sessions s
+        LEFT JOIN lms_attendance_records r ON r.session_id = s.id AND r.student_id = $2
+        WHERE s.course_id = $1 ORDER BY s.date DESC, s.hour_number DESC
+      `, [courseId, req.session.user.id]);
+
+      return res.render('lms-student-attendance', { 
+        user: req.session.user, course, totalSessions, attended, percentage, isEligible, logs: logsRes.rows 
+      });
+    }
+
+    // ==========================================
+    // TEACHER VIEW
+    // ==========================================
     const ownsCourse = await teacherOwnsCourse(req.session.user.id, courseId);
     if (!ownsCourse) {
       return res.status(403).send(`Access Denied: Your User ID (${req.session.user.id}) is not registered as the teacher for Course ${courseId} in the database.`);
     }
 
-    const courseRes = await pool.query(`SELECT id, code, title, credits FROM courses WHERE id = $1`, [courseId]);
-    if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
-    const course = courseRes.rows[0];
     const dateStr = req.query.date || new Date().toISOString().split('T')[0];
 
     const studentsRes = await pool.query(`
