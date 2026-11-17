@@ -286,6 +286,49 @@
         <% } %>
 
         <!-- ============================================== -->
+        <!-- ANNOUNCEMENTS VIEW (FULLY RESTORED) -->
+        <!-- ============================================== -->
+        <% if (view === 'announcements') { %>
+          <div class="section-header">
+            <h1 class="section-title">Announcements</h1>
+          </div>
+
+          <% if (isTeacher) { %>
+            <div class="item-card" style="display: block; border-color: var(--primary); background: var(--bg-surface); padding: 32px; margin-bottom: 32px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="font-size: 18px; color: var(--primary); margin-bottom: 24px;"><i class="fa-solid fa-bullhorn"></i> Post New Announcement</h3>
+              <form action="/course/<%= course.id %>/announcements" method="POST">
+                <input type="text" name="title" class="form-input" placeholder="Announcement Title" required style="margin-bottom: 16px;">
+                <textarea name="message" class="form-input" rows="4" placeholder="Write your announcement message here..." required style="margin-bottom: 16px;"></textarea>
+                <button type="submit" class="btn" style="padding: 10px 24px;"><i class="fa-solid fa-paper-plane"></i> Post Announcement</button>
+              </form>
+            </div>
+          <% } %>
+
+          <% if (typeof announcements === 'undefined' || announcements.length === 0) { %>
+             <div style="text-align: center; padding: 60px; color: var(--text-muted); background: var(--bg-surface); border-radius: 16px; border: 1px dashed var(--border);">
+               <i class="fa-solid fa-bullhorn" style="font-size: 48px; color: var(--border); margin-bottom: 16px;"></i>
+               <h3>No announcements yet.</h3>
+               <p>There are no announcements for this course currently.</p>
+             </div>
+          <% } else { %>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <% announcements.forEach(ann => { %>
+                <div class="item-card" style="display: block; padding: 24px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border); border-left: 4px solid var(--primary);">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h4 style="font-size: 18px; font-weight: 800; color: var(--text-main); margin: 0;"><%= ann.title %></h4>
+                    <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);"><%= new Date(ann.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %></span>
+                  </div>
+                  <p style="font-size: 14px; color: var(--text-main); line-height: 1.6; white-space: pre-wrap; margin-bottom: 16px;"><%= ann.message %></p>
+                  <div style="font-size: 12px; font-weight: 600; color: var(--primary);">
+                    <i class="fa-solid fa-user-circle"></i> Posted by: <%= ann.author_name || (isTeacher ? 'You' : 'Instructor') %>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
+        <% } %>
+
+        <!-- ============================================== -->
         <!-- MATERIALS VIEW -->
         <!-- ============================================== -->
         <% if (view === 'materials') { %>
@@ -595,9 +638,9 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- OTHER VIEWS PLACEHOLDER (EXCLUDES GRADES) -->
+        <!-- OTHER VIEWS PLACEHOLDER (EXCLUDES COMPLETED VIEWS) -->
         <!-- ============================================== -->
-        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades') { %>
+        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'announcements') { %>
           <div class="section-header">
             <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
