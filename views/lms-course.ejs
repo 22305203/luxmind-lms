@@ -161,23 +161,40 @@
   </header>
 
   <div class="layout">
+    <!-- ============================================== -->
+    <!-- EXPANDED LEFT SIDEBAR -->
+    <!-- ============================================== -->
     <aside class="course-nav" id="sidebar">
       <div class="course-header-side">
         <span class="course-code-side"><%= course.code %></span>
         <h2><%= course.title %></h2>
       </div>
       <ul class="nav-list">
+        <!-- CORE -->
         <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Course Home</a></li>
         <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
+        <li><a href="/course/<%= course.id %>?view=syllabus" class="<%= view === 'syllabus' ? 'active' : '' %>"><i class="fa-solid fa-file-contract"></i> Syllabus Outline</a></li>
         <li><a href="/course/<%= course.id %>?view=materials" class="<%= view === 'materials' ? 'active' : '' %>"><i class="fa-solid fa-folder-open"></i> Course Materials</a></li>
+        <li><a href="/course/<%= course.id %>?view=live" class="<%= view === 'live' ? 'active' : '' %>"><i class="fa-solid fa-video"></i> Live Sessions</a></li>
+
         <div class="nav-divider"></div>
+        
+        <!-- ASSESSMENTS -->
         <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Assessments</div>
         <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
         <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes & Exams</a></li>
         <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> Gradebook</a></li>
+        <li><a href="/course/<%= course.id %>?view=question-bank" class="<%= view === 'question-bank' ? 'active' : '' %>"><i class="fa-solid fa-database"></i> Question Bank</a></li>
+        <li><a href="/course/<%= course.id %>?view=export-grades" class="<%= view === 'export-grades' ? 'active' : '' %>"><i class="fa-solid fa-file-export"></i> Export Grades</a></li>
+
         <div class="nav-divider"></div>
+        
+        <!-- MANAGEMENT & COMMUNICATION -->
         <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Management</div>
         <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
+        <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
+        <li><a href="/course/<%= course.id %>?view=groups" class="<%= view === 'groups' ? 'active' : '' %>"><i class="fa-solid fa-users-rectangle"></i> Student Groups</a></li>
+        <li><a href="/course/<%= course.id %>?view=messages" class="<%= view === 'messages' ? 'active' : '' %>"><i class="fa-solid fa-envelope"></i> Course Inbox</a></li>
         <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>
         <li><a href="/course/<%= course.id %>?view=analytics" class="<%= view === 'analytics' ? 'active' : '' %>"><i class="fa-solid fa-chart-line"></i> Analytics</a></li>
         <li><a href="/course/<%= course.id %>?view=settings" class="<%= view === 'settings' ? 'active' : '' %>"><i class="fa-solid fa-gear"></i> Course Settings</a></li>
@@ -256,9 +273,11 @@
                     <a href="?view=announcements" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-bullhorn"></i> Post Announcement</a>
                     <a href="?view=materials" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-upload"></i> Upload Material</a>
                     <a href="?view=assignments" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-file-circle-plus"></i> Create Assignment</a>
+                    <a href="?view=attendance" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-clipboard-user"></i> Take Attendance</a>
                   <% } else { %>
                     <a href="?view=materials" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-folder-open"></i> View Course Materials</a>
                     <a href="?view=assignments" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-file-pen"></i> View Assignments</a>
+                    <a href="?view=live" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-video"></i> Join Live Class</a>
                   <% } %>
                 </div>
               </div>
@@ -580,30 +599,44 @@
         <!-- ============================================== -->
         <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades') { %>
           <div class="section-header">
-            <h1 class="section-title"><%= view.charAt(0).toUpperCase() + view.slice(1) %></h1>
+            <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
           <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
             <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--text-muted); margin-bottom: 16px;"></i>
             <h3 style="color: var(--text-main); margin-bottom: 8px;">Under Construction</h3>
-            <p style="color: var(--text-muted); font-size:13px;">The <%= view %> module is coming in the next update.</p>
+            <p style="color: var(--text-muted); font-size:13px;">The <%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %> module is coming in the next update.</p>
           </div>
         <% } %>
 
       </main>
 
+      <!-- ============================================== -->
+      <!-- EXPANDED RIGHT SIDEBAR (QUICK ACTIONS) -->
+      <!-- ============================================== -->
       <aside class="right-sidebar">
         <div class="widget">
           <h3><i class="fa-solid fa-bolt"></i> Quick Actions</h3>
-          <div class="quick-action" onclick="window.location.href='?view=materials'">
-            <i class="fa-solid fa-upload"></i> Upload Material
-          </div>
+          
           <div class="quick-action" onclick="window.location.href='?view=announcements'">
             <i class="fa-solid fa-bullhorn"></i> Post Announcement
           </div>
-          <div class="quick-action">
+          <div class="quick-action" onclick="window.location.href='?view=materials'">
+            <i class="fa-solid fa-upload"></i> Upload Material
+          </div>
+          <div class="quick-action" onclick="window.location.href='?view=assignments'">
+            <i class="fa-solid fa-file-circle-plus"></i> Create Assignment
+          </div>
+          <div class="quick-action" onclick="window.location.href='?view=quizzes'">
+            <i class="fa-solid fa-stopwatch"></i> Create Quiz
+          </div>
+          <div class="quick-action" onclick="window.location.href='?view=attendance'">
             <i class="fa-solid fa-list-check"></i> Take Attendance
           </div>
+          <div class="quick-action" onclick="window.location.href='?view=messages'">
+            <i class="fa-solid fa-envelope"></i> Send Message
+          </div>
         </div>
+        
         <div class="widget">
           <h3><i class="fa-solid fa-circle-info"></i> Course Info</h3>
           <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><strong>Instructor:</strong> <%= course.teacher_name || 'You' %></p>
