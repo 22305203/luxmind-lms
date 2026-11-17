@@ -192,7 +192,7 @@
         <!-- MANAGEMENT & COMMUNICATION -->
         <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Management</div>
         <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
-        <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
+       <li><a href="/course/<%= course.id %>/attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
         <li><a href="/course/<%= course.id %>?view=groups" class="<%= view === 'groups' ? 'active' : '' %>"><i class="fa-solid fa-users-rectangle"></i> Student Groups</a></li>
         <li><a href="/course/<%= course.id %>?view=messages" class="<%= view === 'messages' ? 'active' : '' %>"><i class="fa-solid fa-envelope"></i> Course Inbox</a></li>
         <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>

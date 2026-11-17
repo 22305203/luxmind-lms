@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance | <%= course.code %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-body: #f4f6fa; --bg-surface: #ffffff; --text-main: #0f172a; --text-muted: #64748b;
+      --border: #e2e8f0; --primary: #4f46e5; --primary-soft: #eef2ff; --danger: #ef4444; --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body { background: var(--bg-body); color: var(--text-main); padding: 24px; }
+    
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #fff; background: var(--primary); padding: 10px 18px; border-radius: 8px; text-decoration: none; }
+    
+    .card { background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border); padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+    
+    /* Attendance Table */
+    .att-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .att-table th { padding: 12px; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+    .att-table td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    
+    .student-info { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-weight: 800; }
+    
+    .hour-cell { min-width: 140px; }
+    .qr-box { background: var(--bg-body); border: 1px dashed var(--border); border-radius: 8px; padding: 12px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 8px; }
+    .qr-box:hover { border-color: var(--primary); background: var(--primary-soft); }
+    .qr-icon { font-size: 24px; color: var(--primary); margin-bottom: 4px; }
+    
+    .radio-group { display: flex; gap: 8px; justify-content: center; }
+    .radio-group label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+    
+    /* QR Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; place-items: center; }
+    .modal.active { display: grid; }
+    .modal-content { background: #fff; padding: 32px; border-radius: 16px; text-align: center; width: 90%; max-width: 400px; }
+    #qrcode { margin: 20px auto; display: flex; justify-content: center; }
+    .timer { font-size: 24px; font-weight: 800; color: var(--danger); margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Area with Back Button on Right -->
+  <div class="top-bar">
+    <h1 style="font-size: 24px; font-weight: 800;"><%= course.code %> Attendance</h1>
+    <a href="/course/<%= course.id %>?view=dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Course</a>
+  </div>
+
+  <div class="card" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: center;">
+    <form action="/course/<%= course.id %>/attendance" method="GET" style="display: flex; gap: 16px; align-items: center; margin: 0;">
+      <label style="font-weight: 600; font-size: 14px;">Select Date:</label>
+      <input type="date" name="date" value="<%= selectedDate %>" onchange="this.form.submit()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;">
+    </form>
+
+    <% if (sessions.length === 0) { %>
+      <form action="/course/<%= course.id %>/attendance/start" method="POST" style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+        <input type="hidden" name="date" value="<%= selectedDate %>">
+        <select name="hours" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;">
+          <option value="2">2 Hours</option>
+          <option value="3" selected>3 Hours</option>
+          <option value="4">4 Hours</option>
+        </select>
+        <button type="submit" class="back-btn" style="background: var(--success);"><i class="fa-solid fa-play"></i> Start Class Sessions</button>
+      </form>
+    <% } %>
+  </div>
+
+  <% if (sessions.length > 0) { %>
+    <div class="card">
+      <table class="att-table">
+        <thead>
+          <tr>
+            <th>ID (Chrono)</th>
+            <th>Student Profile</th>
+            <th>Semester</th>
+            <% sessions.forEach(s => { %>
+              <th>Hour <%= s.hour_number %></th>
+            <% }); %>
+          </tr>
+        </thead>
+        <tbody>
+          <% students.forEach(st => { %>
+            <tr>
+              <td style="font-weight: 600; color: var(--primary);"><%= st.admission_number %></td>
+              <td>
+                <div class="student-info">
+                  <div class="avatar"><%= st.full_name.charAt(0) %></div>
+                  <div>
+                    <div style="font-weight: 600;"><%= st.full_name %></div>
+                    <div style="font-size: 12px; color: var(--text-muted);"><%= st.email %></div>
+                  </div>
+                </div>
+              </td>
+              <td style="font-weight: 600;">Fall 2024</td>
+              
+              <% sessions.forEach(sess => { 
+                 const record = records.find(r => r.session_id === sess.id && r.student_id === st.id);
+              %>
+                <td class="hour-cell">
+                  <!-- QR Box -->
+                  <div class="qr-box" onclick="openQRModal(<%= sess.id %>, '<%= st.admission_number %>')">
+                    <i class="fa-solid fa-qrcode qr-icon"></i>
+                    <div style="font-size: 11px; font-weight: 600;">Show QR Code</div>
+                  </div>
+                  
+                  <!-- Radio Buttons -->
+                  <div class="radio-group">
+                    <label>
+                      <input type="radio" name="att_<%= sess.id %>_<%= st.id %>" value="present" 
+                        <%= record && record.status === 'present' ? 'checked' : '' %>
+                        onchange="markManual(<%= sess.id %>, <%= st.id %>, 'present')"> Present
+                    </label>
+                    <label>
+                      <input type="radio" name="att_<%= sess.id %>_<%= st.id %>" value="absent"
+                        <%= record && record.status === 'absent' ? 'checked' : '' %>
+                        onchange="markManual(<%= sess.id %>, <%= st.id %>, 'absent')"> Absent
+                    </label>
+                  </div>
+                </td>
+              <% }); %>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } else { %>
+    <div class="card" style="text-align: center; padding: 60px;">
+      <i class="fa-solid fa-calendar-xmark" style="font-size: 48px; color: var(--border); margin-bottom: 16px;"></i>
+      <h3>No sessions started for <%= selectedDate %></h3>
+      <p style="color: var(--text-muted);">Select the number of hours and click "Start Class Sessions" to begin.</p>
+    </div>
+  <% } %>
+
+  <!-- QR Modal -->
+  <div class="modal" id="qrModal">
+    <div class="modal-content">
+      <h3 style="font-size: 20px; font-weight: 800; margin-bottom: 8px;">Scan to Mark Attendance</h3>
+      <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">Token expires in 100 seconds. Location restricted.</p>
+      
+      <div id="qrcode"></div>
+      
+      <div class="timer" id="timerDisplay">100s</div>
+      <button onclick="closeQRModal()" style="margin-top: 24px; padding: 10px 24px; background: var(--text-main); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const courseId = <%= course.id %>;
+    let timerInterval;
+
+    // 1. Manual Marking via Radio Buttons
+    function markManual(sessionId, studentId, status) {
+      fetch(`/course/${courseId}/attendance/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, student_id: studentId, status })
+      }).then(res => res.json()).then(data => {
+        if(!data.success) alert("Failed to save");
+      });
+    }
+
+    // 2. Open QR Modal & Generate Token
+    function openQRModal(sessionId, studentId) {
+      const modal = document.getElementById('qrModal');
+      const qrContainer = document.getElementById('qrcode');
+      const timerDisplay = document.getElementById('timerDisplay');
+      
+      qrContainer.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size: 40px; color: var(--primary);"></i>';
+      modal.classList.add('active');
+
+      // Get Teacher's GPS Location
+      navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        fetch(`/course/${courseId}/attendance/qr/${sessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lng })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+              text: data.token,
+              width: 250,
+              height: 250,
+              colorDark : "#0f172a",
+              colorLight : "#ffffff",
+              correctLevel : QRCode.CorrectLevel.H
+            });
+
+            // Start Countdown Timer
+            let timeLeft = 100;
+            timerDisplay.textContent = timeLeft + 's';
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+              timeLeft--;
+              timerDisplay.textContent = timeLeft + 's';
+              if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                qrContainer.innerHTML = '<div style="color: var(--danger); font-weight: bold; margin: 40px 0;">QR CODE EXPIRED</div>';
+                timerDisplay.textContent = 'Expired';
+              }
+            }, 1000);
+          } else {
+            qrContainer.innerHTML = '<div style="color: var(--danger);">Failed to generate token.</div>';
+          }
+        });
+      }, (err) => {
+        alert("Please enable GPS/Location to generate a secure geofenced QR code.");
+        closeQRModal();
+      });
+    }
+
+    function closeQRModal() {
+      document.getElementById('qrModal').classList.remove('active');
+      clearInterval(timerInterval);
+    }
+  </script>
+</body>
+</html>
