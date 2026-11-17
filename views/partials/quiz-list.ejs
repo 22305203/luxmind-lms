@@ -1,0 +1,185 @@
+<div class="section-header">
+  <h1 class="section-title">Quizzes & Exams</h1>
+  <% if (isTeacher) { %>
+    <button class="btn" onclick="document.getElementById('createQuizForm').style.display='block'">
+      <i class="fa-solid fa-plus"></i> Create Quiz
+    </button>
+  <% } %>
+</div>
+
+<!-- ============================================ -->
+<!-- TEACHER: CREATE QUIZ FORM (hidden by default) -->
+<!-- ============================================ -->
+<% if (isTeacher) { %>
+<form id="createQuizForm" action="/course/<%= course.id %>/quizzes" method="POST"
+      style="display:none; background:var(--bg-surface); border:1px solid var(--border); border-radius:16px; padding:28px; margin-bottom:32px;">
+  <h3 style="margin-bottom:20px; color:var(--primary);"><i class="fa-solid fa-circle-plus"></i> New Quiz</h3>
+
+  <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:16px; margin-bottom:16px;">
+    <input type="text" name="title" class="form-input" placeholder="Quiz Title (e.g. Midterm Exam)" required>
+    <input type="number" name="duration_minutes" class="form-input" placeholder="Duration (min)" min="1" value="60" required>
+    <input type="number" name="max_attempts" class="form-input" placeholder="Max attempts" min="1" value="1">
+  </div>
+
+  <textarea name="description" class="form-input" rows="2" placeholder="Short description (optional)" style="margin-bottom:16px;"></textarea>
+  <textarea name="instructions" class="form-input" rows="2" placeholder="Instructions shown before student starts (optional)" style="margin-bottom:16px;"></textarea>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; margin-bottom:16px;">
+    <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Opens
+      <input type="datetime-local" name="open_at" class="form-input" style="margin-top:4px;">
+    </label>
+    <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Closes
+      <input type="datetime-local" name="close_at" class="form-input" style="margin-top:4px;">
+    </label>
+    <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Grades Released
+      <input type="datetime-local" name="grade_release_at" class="form-input" style="margin-top:4px;">
+    </label>
+    <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Pass Mark (optional)
+      <input type="number" name="pass_mark" class="form-input" min="0" placeholder="e.g. 50" style="margin-top:4px;">
+    </label>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+    <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Late start
+      <select name="late_start_behavior" class="form-input" style="margin-top:4px;">
+        <option value="truncated" selected>Truncate to close time</option>
+        <option value="full">Full duration (grace window)</option>
+        <option value="blocked">Block late starts</option>
+      </select>
+    </label>
+    <label style="font-size:12px; font-weight:600; color:var(--text-muted);">Auto-submit after N warnings
+      <input type="number" name="auto_submit_after_warnings" class="form-input" min="1" value="3" style="margin-top:4px;">
+    </label>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:20px; margin-bottom:20px; font-size:13px;">
+    <label><input type="checkbox" name="duration_fixed" checked> Fixed duration</label>
+    <label><input type="checkbox" name="shuffle_questions" checked> Shuffle questions</label>
+    <label><input type="checkbox" name="shuffle_choices" checked> Shuffle choices</label>
+    <label><input type="checkbox" name="anti_cheat_enabled" checked> Anti-cheat (tab switch, copy)</label>
+    <label><input type="checkbox" name="show_correct_answers" checked> Show correct answers after release</label>
+    <label><input type="checkbox" name="show_feedback" checked> Show teacher feedback</label>
+  </div>
+
+  <div style="display:flex; gap:12px;">
+    <button type="submit" class="btn"><i class="fa-solid fa-check"></i> Create Quiz</button>
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('createQuizForm').style.display='none'">Cancel</button>
+  </div>
+</form>
+<% } %>
+
+<!-- ============================================ -->
+<!-- QUIZ LIST -->
+<!-- ============================================ -->
+<% if (quizzes.length === 0) { %>
+  <div style="text-align:center; padding:60px; color:var(--text-muted); background:var(--bg-surface); border-radius:16px; border:1px dashed var(--border);">
+    <i class="fa-solid fa-stopwatch" style="font-size:48px; color:var(--border); margin-bottom:16px;"></i>
+    <h3>No quizzes yet.</h3>
+    <p><%= isTeacher ? 'Click "Create Quiz" to get started.' : 'Your instructor has not created any quizzes.' %></p>
+  </div>
+<% } else { %>
+  <div class="material-grid">
+    <% quizzes.forEach(q => { %>
+      <div class="material-card">
+        <div class="mat-icon-wrapper">
+          <div class="mat-icon" style="color:#4f46e5; background:rgba(79,70,229,0.1);">
+            <i class="fa-solid fa-stopwatch"></i>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <% if (isTeacher && !q.is_published) { %>
+              <span style="background:#ef4444; color:white; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:800;">DRAFT</span>
+            <% } %>
+            <span class="mat-week"><%= q.duration_minutes %> min</span>
+          </div>
+        </div>
+
+        <h4 class="mat-title"><%= q.title %></h4>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:8px; line-height:1.5;"><%= q.description || '' %></p>
+
+        <div class="mat-meta" style="margin-bottom:12px;">
+          <i class="fa-regular fa-clock"></i>
+          <% if (q.close_at) { %>
+            Closes: <%= new Date(q.close_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %>
+          <% } else { %>
+            No close date
+          <% } %>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- TEACHER ACTIONS -->
+        <!-- ============================================ -->
+        <% if (isTeacher) { %>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+            <a href="?view=quizzes&quiz_id=<%= q.id %>" class="btn btn-outline" style="justify-content:center;">
+              <i class="fa-solid fa-pen"></i> Edit
+            </a>
+            <a href="/course/<%= course.id %>/quizzes/<%= q.id %>/grading" class="btn btn-outline" style="justify-content:center;">
+              <i class="fa-solid fa-check-double"></i> Grade
+            </a>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); text-align:center; margin-bottom:8px;">
+            <%= q.question_count %> questions · <%= q.total_marks %> marks · <%= q.attempt_count %> attempts
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <form action="/course/<%= course.id %>/quizzes/<%= q.id %>/publish" method="POST">
+              <button type="submit" class="btn" style="width:100%; justify-content:center; background:<%= q.is_published ? '#f59e0b' : '#10b981' %>;">
+                <i class="fa-solid <%= q.is_published ? 'fa-eye-slash' : 'fa-eye' %>"></i>
+                <%= q.is_published ? 'Unpublish' : 'Publish' %>
+              </button>
+            </form>
+            <form action="/course/<%= course.id %>/quizzes/<%= q.id %>/delete" method="POST"
+                  onsubmit="return confirm('Delete this quiz and all its questions/attempts?');">
+              <button type="submit" class="btn" style="width:100%; justify-content:center; background:#ef4444;">
+                <i class="fa-solid fa-trash"></i> Delete
+              </button>
+            </form>
+          </div>
+          <% if (q.attempt_count > 0) { %>
+            <form action="/course/<%= course.id %>/quizzes/<%= q.id %>/force-close" method="POST"
+                  onsubmit="return confirm('Force-close and auto-submit all in-progress attempts?');"
+                  style="margin-top:8px;">
+              <button type="submit" class="btn btn-outline" style="width:100%; justify-content:center; color:#ef4444; border-color:#ef4444;">
+                <i class="fa-solid fa-lock"></i> Force-close
+              </button>
+            </form>
+          <% } %>
+
+        <!-- ============================================ -->
+        <!-- STUDENT ACTIONS -->
+        <!-- ============================================ -->
+        <% } else { %>
+          <% if (q.has_in_progress) { %>
+            <a href="/course/<%= course.id %>/quizzes/<%= q.id %>/take" class="btn" style="width:100%; justify-content:center; background:#f59e0b;">
+              <i class="fa-solid fa-play"></i> Resume Quiz
+            </a>
+          <% } else if (q.latest_attempt && ['submitted','graded','released'].includes(q.latest_attempt.status)) { %>
+            <a href="/course/<%= course.id %>/quizzes/<%= q.id %>/result" class="btn btn-outline" style="width:100%; justify-content:center;">
+              <i class="fa-solid fa-chart-simple"></i>
+              <% if (q.latest_attempt.status === 'released') { %>
+                See Result
+              <% } else { %>
+                Result (pending)
+              <% } %>
+            </a>
+          <% } else if (q.can_start) { %>
+            <form action="/course/<%= course.id %>/quizzes/<%= q.id %>/start" method="POST">
+              <button type="submit" class="btn" style="width:100%; justify-content:center;"
+                      onclick="return confirm('Start this quiz? Your timer will begin immediately.');">
+                <i class="fa-solid fa-play"></i> Start Quiz
+              </button>
+            </form>
+          <% } else if (!q.is_open) { %>
+            <div style="text-align:center; padding:10px; background:var(--bg-body); border-radius:8px; color:var(--text-muted); font-size:13px; font-weight:600;">
+              <i class="fa-solid fa-lock"></i>
+              <%= q.close_at && new Date(q.close_at) <= new Date() ? 'Closed' : 'Not yet open' %>
+            </div>
+          <% } else { %>
+            <div style="text-align:center; padding:10px; background:var(--bg-body); border-radius:8px; color:var(--text-muted); font-size:13px;">
+              Max attempts reached
+            </div>
+          <% } %>
+        <% } %>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
