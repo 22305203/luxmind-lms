@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grading — <%= quiz.title %></title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    body { font-family:'Inter',sans-serif; background:#f4f6fa; padding:32px; color:#0f172a; }
+    .shell { max-width:1000px; margin:0 auto; }
+    .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; margin-bottom:16px; }
+    .row { display:grid; grid-template-columns:1fr 120px; gap:12px; align-items:start; margin-bottom:12px; }
+    input[type=number], textarea { width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-family:inherit; box-sizing:border-box; }
+    .btn { background:#4f46e5; color:#fff; border:none; padding:10px 18px; border-radius:8px; font-weight:700; cursor:pointer; }
+    .muted { font-size:13px; color:#64748b; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <h1 style="margin-bottom:20px;">Grading: <%= quiz.title %></h1>
+
+  <% if (attempts.length === 0) { %>
+    <p class="card">No submitted attempts yet.</p>
+  <% } else { %>
+    <% attempts.forEach(att => { %>
+      <form class="card" method="POST" action="/course/<%= course.id %>/quizzes/<%= quiz.id %>/grading/<%= att.id %>">
+        <h3 style="margin-bottom:6px;"><%= att.student_name %></h3>
+        <p class="muted" style="margin-bottom:14px;">
+          Submitted: <%= att.submitted_at ? new Date(att.submitted_at).toLocaleString() : '—' %>
+          · Status: <strong><%= att.status %></strong>
+          · Score: <strong><%= Number(att.total_score || 0).toFixed(1) %> / <%= quiz.total_marks %></strong>
+        </p>
+
+        <% att.manual_questions.forEach(mq => { %>
+          <div style="border-top:1px solid #e2e8f0; padding-top:14px; margin-top:14px;">
+            <p style="font-weight:600; margin-bottom:6px;">
+              <%= mq.question.prompt %>
+              <span class="muted" style="font-weight:400;">(max <%= mq.question.marks %>)</span>
+            </p>
+            <p class="muted" style="margin-bottom:8px;">
+              Student answer: <%= mq.answer && mq.answer.student_answer ? (mq.answer.student_answer.value || '(blank)') : '(blank)' %>
+            </p>
+            <div class="row">
+              <textarea name="feedback_<%= mq.question.id %>" rows="2" placeholder="Feedback (optional)"><%= mq.answer ? (mq.answer.teacher_feedback || '') : '' %></textarea>
+              <input type="number" name="manual_score_<%= mq.question.id %>" step="0.5" min="0" max="<%= mq.question.marks %>"
+                     value="<%= mq.answer && mq.answer.manual_score != null ? mq.answer.manual_score : '' %>"
+                     placeholder="Score">
+            </div>
+          </div>
+        <% }); %>
+
+        <% if (att.manual_questions.length === 0) { %>
+          <p class="muted">All questions are auto-graded. No manual work needed.</p>
+        <% } else { %>
+          <div style="margin-top:16px;">
+            <button type="submit" class="btn">Save Grades</button>
+          </div>
+        <% } %>
+      </form>
+    <% }); %>
+  <% } %>
+
+  <p><a href="/course/<%= course.id %>?view=quizzes">← Back to quizzes</a></p>
+</div>
+</body>
+</html>
