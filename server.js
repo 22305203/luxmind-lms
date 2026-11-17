@@ -344,6 +344,66 @@ async function maybeRelease(attempt, quiz) {
 }
 
 // ============================================
+// QUESTION BANK HELPERS
+// ============================================
+function parseBankPayload(b) {
+  const type = String(b.type || '').toUpperCase();
+  const VALID = ['MCQ','TF','FILL_BLANK','SHORT_ANSWER','ESSAY'];
+  if (!VALID.includes(type)) throw new Error('Invalid question type.');
+  if (!b.prompt || !b.prompt.trim()) throw new Error('Prompt is required.');
+
+  const marks = Math.max(0, parseInt(b.marks, 10) || 1);
+  const explanation = b.explanation ? b.explanation.trim() : null;
+  const topic = b.topic ? b.topic.trim() : null;
+  const difficulty = ['easy','medium','hard'].includes(b.difficulty) ? b.difficulty : null;
+  const tagsArr = (b.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+
+  let choices = null;
+  let correctAnswer = null;
+  let caseInsensitive = true;
+  let synonyms = null;
+  let tolerance = null;
+  let autoGrade = true;
+
+  if (type === 'MCQ') {
+    const texts = [].concat(b.choice_texts || []);
+    const correctSet = new Set([].concat(b.choice_correct || []).map(x => parseInt(x, 10)));
+    const cleaned = texts
+      .map((t, i) => ({ text: String(t || '').trim(), is_correct: correctSet.has(i) }))
+      .filter(x => x.text.length > 0);
+    if (cleaned.length < 2) throw new Error('MCQ needs at least 2 non-empty choices.');
+    if (!cleaned.some(x => x.is_correct)) throw new Error('Mark at least one choice as correct.');
+    choices = cleaned;
+  } else if (type === 'TF') {
+    const v = String(b.tf_value || '').toLowerCase() === 'true';
+    choices = [
+      { text: 'True',  is_correct: v  },
+      { text: 'False', is_correct: !v }
+    ];
+    correctAnswer = { value: v };
+  } else if (type === 'FILL_BLANK') {
+    if (!b.fill_value || !b.fill_value.trim()) throw new Error('Fill-in-blank needs a correct value.');
+    synonyms = (b.synonyms || '').split(',').map(s => s.trim()).filter(Boolean);
+    tolerance = b.tolerance ? Number(b.tolerance) : null;
+    caseInsensitive = b.case_insensitive === 'false' ? false : true;
+    correctAnswer = { value: b.fill_value.trim(), synonyms, tolerance };
+  } else if (type === 'SHORT_ANSWER' || type === 'ESSAY') {
+    const ma = b.model_answer ? b.model_answer.trim() : null;
+    correctAnswer = ma ? { model_answer: ma } : null;
+    autoGrade = false;
+    if (b.auto_grade !== undefined) {
+      autoGrade = b.auto_grade === 'on' || b.auto_grade === 'true';
+    }
+  }
+
+  return {
+    type, prompt: b.prompt.trim(), explanation, marks, topic, difficulty,
+    tagsArr, choices, correctAnswer, caseInsensitive, synonyms, tolerance, autoGrade
+  };
+}
+
+
+// ============================================
 // --- GRADEBOOK HELPERS ---
 // ============================================
 async function ensureGradeSettings(courseId) {
@@ -527,6 +587,7 @@ app.get('/course/:id', async (req, res) => {
 
     let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
     let activeQuiz = null, activeQuizQuestions = [], activeQuizChoices = [];
+    let bankQuestions = [];
 
     if (view === 'dashboard' || view === 'assignments' || view === 'grades') {
       if (isTeacher) {
@@ -677,6 +738,20 @@ app.get('/course/:id', async (req, res) => {
       }
     }
 
+
+    // ============================================
+    // QUESTION BANK view (teacher only)
+    // ============================================
+    if (view === 'question-bank') {
+      if (!isTeacher) return res.status(403).send("Access Denied.");
+      const bqRes = await pool.query(
+        `SELECT * FROM lms_question_bank WHERE course_id = $1 ORDER BY created_at DESC`,
+        [courseId]
+      );
+      bankQuestions = bqRes.rows;
+    }
+
+
     let upcomingAssignments = [];
     let latestAnnouncements = [];
     let studentCount = 0;
@@ -694,14 +769,15 @@ app.get('/course/:id', async (req, res) => {
       }
     }
 
-    res.render('lms-course', {
+       res.render('lms-course', {
       user: req.session.user, isTeacher, course, view,
       assignments, quizzes, grades, announcements, materials, students,
       unreadCount: 0,
       upcomingAssignments, latestAnnouncements, studentCount,
       selectedAssignmentId: req.query.assignment_id || null,
       activeQuiz, activeQuizQuestions, activeQuizChoices,
-      selectedQuizId: req.query.quiz_id || null
+      selectedQuizId: req.query.quiz_id || null,
+      bankQuestions                                 // ← ADD THIS LINE
     });
   } catch (err) { res.status(500).send("Course Error: " + err.message); }
 });
@@ -1996,6 +2072,269 @@ app.get('/course/:id/attendance/status', async (req, res) => {
     res.json({ records: records.rows });
   } catch (err) { res.json({ records: [] }); }
 });
+
+// ============================================
+// QUESTION BANK — QB-2 routes
+// ============================================
+
+// 1. CREATE bank question
+app.post('/course/:id/question-bank', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const p = parseBankPayload(req.body);
+    await pool.query(`
+      INSERT INTO lms_question_bank
+        (course_id, type, prompt, explanation, marks, correct_answer, choices,
+         auto_grade, case_insensitive, synonyms, tolerance, topic, difficulty, tags, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    `, [
+      courseId, p.type, p.prompt, p.explanation, p.marks,
+      p.correctAnswer ? JSON.stringify(p.correctAnswer) : null,
+      p.choices ? JSON.stringify(p.choices) : null,
+      p.autoGrade, p.caseInsensitive,
+      p.synonyms ? JSON.stringify(p.synonyms) : null,
+      p.tolerance, p.topic, p.difficulty,
+      JSON.stringify(p.tagsArr), req.session.user.id
+    ]);
+    console.log('[qbank-create]', courseId, p.type, p.prompt.slice(0, 40));
+    res.redirect(`/course/${courseId}?view=question-bank`);
+  } catch (err) {
+    console.error('[qbank-create]', err);
+    res.status(400).send("Create Bank Question Error: " + err.message);
+  }
+});
+
+// 2. UPDATE bank question
+app.post('/course/:id/question-bank/:question_id', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, question_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const p = parseBankPayload(req.body);
+    const r = await pool.query(`
+      UPDATE lms_question_bank SET
+        type = $1, prompt = $2, explanation = $3, marks = $4,
+        correct_answer = $5, choices = $6,
+        auto_grade = $7, case_insensitive = $8, synonyms = $9, tolerance = $10,
+        topic = $11, difficulty = $12, tags = $13
+      WHERE id = $14 AND course_id = $15
+    `, [
+      p.type, p.prompt, p.explanation, p.marks,
+      p.correctAnswer ? JSON.stringify(p.correctAnswer) : null,
+      p.choices ? JSON.stringify(p.choices) : null,
+      p.autoGrade, p.caseInsensitive,
+      p.synonyms ? JSON.stringify(p.synonyms) : null,
+      p.tolerance, p.topic, p.difficulty,
+      JSON.stringify(p.tagsArr), question_id, courseId
+    ]);
+    if (r.rowCount === 0) return res.status(404).send("Question not found.");
+    console.log('[qbank-update]', question_id);
+    res.redirect(`/course/${courseId}?view=question-bank`);
+  } catch (err) {
+    console.error('[qbank-update]', err);
+    res.status(400).send("Update Bank Question Error: " + err.message);
+  }
+});
+
+// 3. DELETE bank question
+app.post('/course/:id/question-bank/:question_id/delete', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, question_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const r = await pool.query(
+      `DELETE FROM lms_question_bank WHERE id = $1 AND course_id = $2`,
+      [question_id, courseId]
+    );
+    console.log('[qbank-delete]', question_id, 'rows:', r.rowCount);
+    res.redirect(`/course/${courseId}?view=question-bank`);
+  } catch (err) {
+    console.error('[qbank-delete]', err);
+    res.status(500).send("Delete Bank Question Error: " + err.message);
+  }
+});
+
+// 4. SAVE a quiz question → bank (idempotent)
+app.post('/course/:id/quizzes/:quiz_id/questions/:question_id/save-to-bank', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id, question_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const qRes = await pool.query(
+      `SELECT * FROM lms_quiz_questions WHERE id = $1 AND quiz_id = $2`,
+      [question_id, quiz_id]
+    );
+    if (qRes.rows.length === 0) return res.status(404).send("Question not found.");
+    const q = qRes.rows[0];
+
+    if (q.source_bank_id) {
+      console.log('[qbank-save] already saved, bank_id =', q.source_bank_id);
+      return res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
+    }
+
+    let choices = null;
+    if (q.type === 'MCQ' || q.type === 'TF') {
+      const cRes = await pool.query(
+        `SELECT text, is_correct FROM lms_quiz_choices WHERE question_id = $1 ORDER BY position`,
+        [question_id]
+      );
+      choices = cRes.rows;
+    }
+
+    const ins = await pool.query(`
+      INSERT INTO lms_question_bank
+        (course_id, type, prompt, explanation, marks, correct_answer, choices,
+         auto_grade, case_insensitive, synonyms, tolerance, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id
+    `, [
+      courseId, q.type, q.prompt, q.explanation, q.marks,
+      q.correct_answer ? JSON.stringify(q.correct_answer) : null,
+      choices ? JSON.stringify(choices) : null,
+      q.auto_grade, q.case_insensitive,
+      q.synonyms ? JSON.stringify(q.synonyms) : null,
+      q.tolerance, req.session.user.id
+    ]);
+    const bankId = ins.rows[0].id;
+
+    await pool.query(
+      `UPDATE lms_quiz_questions SET source_bank_id = $1 WHERE id = $2`,
+      [bankId, question_id]
+    );
+    await pool.query(
+      `UPDATE lms_question_bank SET usage_count = usage_count + 1 WHERE id = $1`,
+      [bankId]
+    );
+
+    console.log('[qbank-save] saved quiz q', question_id, '→ bank', bankId);
+    res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
+  } catch (err) {
+    console.error('[qbank-save]', err);
+    res.status(500).send("Save to Bank Error: " + err.message);
+  }
+});
+
+// 5. ADD bank questions → quiz (bulk, one transaction)
+app.post('/course/:id/quizzes/:quiz_id/questions/from-bank', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  const raw = req.body.bank_ids;
+  const bankIds = (Array.isArray(raw) ? raw : [raw])
+    .map(x => parseInt(x, 10))
+    .filter(Number.isFinite);
+  if (bankIds.length === 0) return res.status(400).send("No questions selected.");
+
+  try {
+    const quizChk = await pool.query(
+      `SELECT 1 FROM lms_quizzes WHERE id = $1 AND course_id = $2`,
+      [quiz_id, courseId]
+    );
+    if (quizChk.rows.length === 0) return res.status(404).send("Quiz not found.");
+
+    const bankRes = await pool.query(
+      `SELECT * FROM lms_question_bank WHERE id = ANY($1) AND course_id = $2`,
+      [bankIds, courseId]
+    );
+    if (bankRes.rows.length !== bankIds.length) {
+      return res.status(400).send("One or more bank questions do not belong to this course.");
+    }
+    const byId = {};
+    for (const bq of bankRes.rows) byId[bq.id] = bq;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const posRes = await client.query(
+        `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM lms_quiz_questions WHERE quiz_id = $1`,
+        [quiz_id]
+      );
+      let nextPos = parseInt(posRes.rows[0].next_pos, 10);
+
+      for (const bankId of bankIds) {
+        const bq = byId[bankId];
+        if (!bq) continue;
+
+        const qIns = await client.query(`
+          INSERT INTO lms_quiz_questions
+            (quiz_id, position, type, prompt, explanation, marks, correct_answer,
+             auto_grade, case_insensitive, synonyms, tolerance, source_bank_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING id
+        `, [
+          quiz_id, nextPos, bq.type, bq.prompt, bq.explanation, bq.marks,
+          bq.correct_answer ? JSON.stringify(bq.correct_answer) : null,
+          bq.auto_grade, bq.case_insensitive,
+          bq.synonyms ? JSON.stringify(bq.synonyms) : null,
+          bq.tolerance, bq.id
+        ]);
+        const newQId = qIns.rows[0].id;
+
+        // Rebuild choices from the bank's inline array
+        if ((bq.type === 'MCQ' || bq.type === 'TF') && Array.isArray(bq.choices)) {
+          for (let i = 0; i < bq.choices.length; i++) {
+            const c = bq.choices[i];
+            await client.query(
+              `INSERT INTO lms_quiz_choices (question_id, position, text, is_correct)
+               VALUES ($1, $2, $3, $4)`,
+              [newQId, i, c.text, c.is_correct]
+            );
+          }
+          if (bq.type === 'MCQ') {
+            const positions = bq.choices
+              .map((c, i) => c.is_correct ? i : -1)
+              .filter(x => x >= 0);
+            await client.query(
+              `UPDATE lms_quiz_questions SET correct_answer = $1 WHERE id = $2`,
+              [JSON.stringify({ positions }), newQId]
+            );
+          } else if (bq.type === 'TF') {
+            const correct = bq.choices.find(c => c.is_correct);
+            const value = correct ? correct.text.toLowerCase() === 'true' : false;
+            await client.query(
+              `UPDATE lms_quiz_questions SET correct_answer = $1 WHERE id = $2`,
+              [JSON.stringify({ value }), newQId]
+            );
+          }
+        }
+
+        await client.query(
+          `UPDATE lms_question_bank SET usage_count = usage_count + 1 WHERE id = $1`,
+          [bq.id]
+        );
+
+        nextPos++;
+      }
+
+      await client.query('COMMIT');
+      console.log('[qbank-add-from-bank]', bankIds.length, 'questions → quiz', quiz_id);
+      res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('[qbank-add-from-bank]', err);
+    res.status(500).send("Add from Bank Error: " + err.message);
+  }
+});
+
+
 
 // ============================================
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
