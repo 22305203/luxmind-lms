@@ -105,7 +105,6 @@
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; display: none; opacity: 0; transition: opacity 0.3s; }
     .overlay.active { display: block; opacity: 1; }
 
-    /* Custom table styles for Gradebook */
     .grade-table { width: 100%; border-collapse: collapse; text-align: left; }
     .grade-table th { padding: 16px 12px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid var(--border); }
     .grade-table td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
@@ -162,7 +161,7 @@
 
   <div class="layout">
     <!-- ============================================== -->
-    <!-- EXPANDED LEFT SIDEBAR -->
+    <!-- EXPANDED LEFT SIDEBAR (ROLE-GUARDED) -->
     <!-- ============================================== -->
     <aside class="course-nav" id="sidebar">
       <div class="course-header-side">
@@ -170,7 +169,7 @@
         <h2><%= course.title %></h2>
       </div>
       <ul class="nav-list">
-        <!-- CORE -->
+        <!-- CORE — shared -->
         <li><a href="/course/<%= course.id %>?view=dashboard" class="<%= view === 'dashboard' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Course Home</a></li>
         <li><a href="/course/<%= course.id %>?view=announcements" class="<%= view === 'announcements' ? 'active' : '' %>"><i class="fa-solid fa-bullhorn"></i> Announcements</a></li>
         <li><a href="/course/<%= course.id %>?view=syllabus" class="<%= view === 'syllabus' ? 'active' : '' %>"><i class="fa-solid fa-file-contract"></i> Syllabus Outline</a></li>
@@ -178,26 +177,37 @@
         <li><a href="/course/<%= course.id %>?view=live" class="<%= view === 'live' ? 'active' : '' %>"><i class="fa-solid fa-video"></i> Live Sessions</a></li>
 
         <div class="nav-divider"></div>
-        
+
         <!-- ASSESSMENTS -->
         <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Assessments</div>
         <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
-        <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes & Exams</a></li>
-        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> Gradebook</a></li>
-        <li><a href="/course/<%= course.id %>?view=question-bank" class="<%= view === 'question-bank' ? 'active' : '' %>"><i class="fa-solid fa-database"></i> Question Bank</a></li>
-        <li><a href="/course/<%= course.id %>?view=export-grades" class="<%= view === 'export-grades' ? 'active' : '' %>"><i class="fa-solid fa-file-export"></i> Export Grades</a></li>
+        <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes &amp; Exams</a></li>
+        <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> <%= isTeacher ? 'Gradebook' : 'My Grades' %></a></li>
+        <% if (isTeacher) { %>
+          <li><a href="/course/<%= course.id %>?view=question-bank" class="<%= view === 'question-bank' ? 'active' : '' %>"><i class="fa-solid fa-database"></i> Question Bank</a></li>
+          <li><a href="/course/<%= course.id %>?view=export-grades" class="<%= view === 'export-grades' ? 'active' : '' %>"><i class="fa-solid fa-file-export"></i> Export Grades</a></li>
+        <% } %>
 
         <div class="nav-divider"></div>
-        
-        <!-- MANAGEMENT & COMMUNICATION -->
-        <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;">Management</div>
-        <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
-      <li><a href="/course/<%= course.id %>/attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
-        <li><a href="/course/<%= course.id %>?view=groups" class="<%= view === 'groups' ? 'active' : '' %>"><i class="fa-solid fa-users-rectangle"></i> Student Groups</a></li>
+
+        <!-- MANAGEMENT / COMMUNICATION -->
+        <div style="font-size:10px; font-weight:800; color:var(--text-muted); padding:8px 14px; text-transform:uppercase;"><%= isTeacher ? 'Management' : 'Communication' %></div>
+
+        <% if (isTeacher) { %>
+          <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
+          <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
+          <li><a href="/course/<%= course.id %>?view=groups" class="<%= view === 'groups' ? 'active' : '' %>"><i class="fa-solid fa-users-rectangle"></i> Student Groups</a></li>
+        <% } else { %>
+          <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> My Attendance</a></li>
+        <% } %>
+
         <li><a href="/course/<%= course.id %>?view=messages" class="<%= view === 'messages' ? 'active' : '' %>"><i class="fa-solid fa-envelope"></i> Course Inbox</a></li>
         <li><a href="/course/<%= course.id %>?view=forums" class="<%= view === 'forums' ? 'active' : '' %>"><i class="fa-solid fa-comments"></i> Discussion Forums</a></li>
-        <li><a href="/course/<%= course.id %>?view=analytics" class="<%= view === 'analytics' ? 'active' : '' %>"><i class="fa-solid fa-chart-line"></i> Analytics</a></li>
-        <li><a href="/course/<%= course.id %>?view=settings" class="<%= view === 'settings' ? 'active' : '' %>"><i class="fa-solid fa-gear"></i> Course Settings</a></li>
+
+        <% if (isTeacher) { %>
+          <li><a href="/course/<%= course.id %>?view=analytics" class="<%= view === 'analytics' ? 'active' : '' %>"><i class="fa-solid fa-chart-line"></i> Analytics</a></li>
+          <li><a href="/course/<%= course.id %>?view=settings" class="<%= view === 'settings' ? 'active' : '' %>"><i class="fa-solid fa-gear"></i> Course Settings</a></li>
+        <% } %>
       </ul>
     </aside>
 
@@ -286,7 +296,7 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- ANNOUNCEMENTS VIEW (FULLY RESTORED) -->
+        <!-- ANNOUNCEMENTS VIEW -->
         <!-- ============================================== -->
         <% if (view === 'announcements') { %>
           <div class="section-header">
@@ -600,25 +610,21 @@
                         <% } %>
                       </td>
                       
-                      <!-- Teacher Actions -->
                       <% if (isTeacher) { %>
                         <td>
                           <% if (g.item_type === 'Assignment') { %>
-                            <!-- Inline grading for Assignments -->
                             <form action="/course/<%= course.id %>/grades/<%= g.record_id %>" method="POST" style="display: flex; gap: 8px; align-items: center;">
                               <input type="number" name="grade" value="<%= g.score || '' %>" placeholder="Score" class="form-input" style="width: 70px; padding: 6px 10px; font-size: 12px;" max="<%= g.max_points %>" min="0">
                               <input type="text" name="feedback" value="<%= g.feedback || '' %>" placeholder="Feedback" class="form-input" style="width: 140px; padding: 6px 10px; font-size: 12px;">
                               <button type="submit" class="btn" style="padding: 6px 12px; font-size: 12px;">Save</button>
                             </form>
                           <% } else { %>
-                            <!-- Quizzes link to Quiz module -->
                             <a href="/course/<%= course.id %>?view=quizzes" class="btn-action btn-view" style="display: inline-flex; padding: 6px 12px; border-radius: 6px; font-size: 12px;">
                               <i class="fa-solid fa-check-double"></i> View Quizzes
                             </a>
                           <% } %>
                         </td>
                       <% } else { %>
-                        <!-- Student Feedback View -->
                         <td style="color: var(--text-muted); font-size: 12px;">
                           <%= g.feedback || 'No feedback yet' %>
                         </td>
@@ -638,7 +644,7 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- OTHER VIEWS PLACEHOLDER (EXCLUDES COMPLETED VIEWS) -->
+        <!-- OTHER VIEWS PLACEHOLDER -->
         <!-- ============================================== -->
         <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'announcements') { %>
           <div class="section-header">
@@ -654,30 +660,53 @@
       </main>
 
       <!-- ============================================== -->
-      <!-- EXPANDED RIGHT SIDEBAR (QUICK ACTIONS) -->
+      <!-- EXPANDED RIGHT SIDEBAR (ROLE-GUARDED QUICK ACTIONS) -->
       <!-- ============================================== -->
       <aside class="right-sidebar">
         <div class="widget">
           <h3><i class="fa-solid fa-bolt"></i> Quick Actions</h3>
-          
-          <div class="quick-action" onclick="window.location.href='?view=announcements'">
-            <i class="fa-solid fa-bullhorn"></i> Post Announcement
-          </div>
-          <div class="quick-action" onclick="window.location.href='?view=materials'">
-            <i class="fa-solid fa-upload"></i> Upload Material
-          </div>
-          <div class="quick-action" onclick="window.location.href='?view=assignments'">
-            <i class="fa-solid fa-file-circle-plus"></i> Create Assignment
-          </div>
-          <div class="quick-action" onclick="window.location.href='?view=quizzes'">
-            <i class="fa-solid fa-stopwatch"></i> Create Quiz
-          </div>
-          <div class="quick-action" onclick="window.location.href='?view=attendance'">
-            <i class="fa-solid fa-list-check"></i> Take Attendance
-          </div>
-          <div class="quick-action" onclick="window.location.href='?view=messages'">
-            <i class="fa-solid fa-envelope"></i> Send Message
-          </div>
+
+          <% if (isTeacher) { %>
+            <!-- Teacher quick actions -->
+            <div class="quick-action" onclick="window.location.href='?view=announcements'">
+              <i class="fa-solid fa-bullhorn"></i> Post Announcement
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=materials'">
+              <i class="fa-solid fa-upload"></i> Upload Material
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=assignments'">
+              <i class="fa-solid fa-file-circle-plus"></i> Create Assignment
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=quizzes'">
+              <i class="fa-solid fa-stopwatch"></i> Create Quiz
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=attendance'">
+              <i class="fa-solid fa-list-check"></i> Take Attendance
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=messages'">
+              <i class="fa-solid fa-envelope"></i> Send Message
+            </div>
+          <% } else { %>
+            <!-- Student quick actions -->
+            <div class="quick-action" onclick="window.location.href='?view=assignments'">
+              <i class="fa-solid fa-file-pen"></i> View Assignments
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=quizzes'">
+              <i class="fa-solid fa-stopwatch"></i> View Quizzes
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=materials'">
+              <i class="fa-solid fa-folder-open"></i> Course Materials
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=grades'">
+              <i class="fa-solid fa-chart-simple"></i> My Grades
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=live'">
+              <i class="fa-solid fa-video"></i> Join Live Class
+            </div>
+            <div class="quick-action" onclick="window.location.href='?view=messages'">
+              <i class="fa-solid fa-envelope"></i> Message Instructor
+            </div>
+          <% } %>
         </div>
         
         <div class="widget">
