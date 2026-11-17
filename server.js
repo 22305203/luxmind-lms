@@ -35,7 +35,7 @@ const pool = new Pool({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());   // ← NEW: for AJAX anti-cheat /flag endpoint
+app.use(express.json());
 
 // ============================================
 // --- SESSION WITH SAFE POSTGRES STORE ---
@@ -139,6 +139,14 @@ app.use((req, res, next) => {
 });
 
 // ============================================
+// --- TZ HELPER: display stored UTC as Burundi time in <input type="datetime-local"> ---
+// ============================================
+app.locals.toBjInput = function (ts) {
+  if (!ts) return '';
+  return new Date(new Date(ts).getTime() + 2 * 3600 * 1000).toISOString().slice(0, 16);
+};
+
+// ============================================
 // --- DEBUG: inspect current session ---
 // ============================================
 app.get('/whoami', (req, res) => {
@@ -182,9 +190,19 @@ function formOptInt(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// ---------- NEW QUIZ HELPERS ----------
+// NEW: Treat datetime-local value as Burundi time (UTC+2, no DST) → Postgres-safe ISO.
+// If input already has timezone info (Z or ±HH:MM), leave it alone.
+function bjToUTC(v) {
+  if (!v) return null;
+  if (typeof v !== 'string') return v;
+  if (v.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(v)) return v;       // already tagged
+  if (/T\d{2}:\d{2}:\d{2}$/.test(v)) return v + '+02:00';             // has seconds
+  if (/T\d{2}:\d{2}$/.test(v)) return v + ':00+02:00';                // no seconds
+  return v;
+}
 
-// Deterministic seeded shuffle — same order every call for same seed, different per attempt
+// ---------- QUIZ HELPERS ----------
+
 function shuffleSeeded(arr, seed) {
   const h = (s) => {
     let x = 0;
@@ -204,7 +222,6 @@ function shuffleSeeded(arr, seed) {
   return out;
 }
 
-// Auto-grade one answer. Returns { auto_score, is_correct } (null = needs manual)
 function autoGradeAnswer(question, choicesByQuestion, studentAnswer) {
   const marks = Number(question.marks) || 0;
   if (!question.auto_grade) return { auto_score: null, is_correct: null };
@@ -214,7 +231,6 @@ function autoGradeAnswer(question, choicesByQuestion, studentAnswer) {
       .filter(c => c.is_correct).map(c => c.id));
     let selected = [];
     if (question.type === 'TF') {
-      // stored as {value: true/false}, map to choice with matching text
       const val = studentAnswer?.value;
       if (val === undefined || val === null) return { auto_score: 0, is_correct: false };
       const matching = (choicesByQuestion[question.id] || [])
@@ -256,11 +272,9 @@ function autoGradeAnswer(question, choicesByQuestion, studentAnswer) {
     return { auto_score: ok ? marks : 0, is_correct: ok };
   }
 
-  // ESSAY → always manual
   return { auto_score: null, is_correct: null };
 }
 
-// Finalize an attempt: grade everything, save, set status
 async function autoSubmitAttempt(attemptId, quizId) {
   const aRes = await pool.query(`SELECT * FROM lms_quiz_attempts WHERE id = $1`, [attemptId]);
   if (aRes.rows.length === 0) return;
@@ -320,7 +334,6 @@ async function autoSubmitAttempt(attemptId, quizId) {
   `, [newStatus, totalAuto, pct, is_graded, attemptId]);
 }
 
-// Move status='graded' → 'released' once release gate is open
 async function maybeRelease(attempt, quiz) {
   if (attempt.status === 'released') return true;
   if (attempt.status !== 'graded') return false;
@@ -445,9 +458,6 @@ app.get('/course/:id', async (req, res) => {
       }
     }
 
-    // ============================================
-    // QUIZZES — list + (teacher) builder loading + (student) attempt states
-    // ============================================
     if (view === 'quizzes') {
       let qSql = `
         SELECT q.*,
@@ -463,7 +473,6 @@ app.get('/course/:id', async (req, res) => {
       const r = await pool.query(qSql, [courseId]);
       quizzes = r.rows;
 
-      // Teacher builder mode
       if (isTeacher && req.query.quiz_id) {
         const quizRes = await pool.query(
           `SELECT * FROM lms_quizzes WHERE id = $1 AND course_id = $2`,
@@ -487,7 +496,6 @@ app.get('/course/:id', async (req, res) => {
         }
       }
 
-      // Student: attach their attempts + computed state
       if (!isTeacher && quizzes.length > 0) {
         const atRes = await pool.query(
           `SELECT * FROM lms_quiz_attempts
@@ -679,7 +687,7 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
         (course_id, title, instructions, due_date, max_points, is_published, created_by, attachment_url, attachment_name)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
-      courseId, title, instructions || null, due_date || null,
+      courseId, title, instructions || null, bjToUTC(due_date),
       Number(max_points) || 100, is_published === 'on', req.session.user.id,
       attachmentUrl, attachmentName
     ]);
@@ -761,7 +769,7 @@ app.post('/course/:id/grades/:submission_id', async (req, res) => {
 });
 
 // ============================================
-// QUIZ BUILDER (Teacher) — unchanged from before
+// QUIZ BUILDER (Teacher)
 // ============================================
 app.post('/course/:id/quizzes', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
@@ -788,10 +796,10 @@ app.post('/course/:id/quizzes', async (req, res) => {
       ) RETURNING id
     `, [
       courseId, b.title.trim(), b.description || null, b.instructions || null,
-      b.open_at || null, b.close_at || null,
+      bjToUTC(b.open_at), bjToUTC(b.close_at),
       formInt(b.duration_minutes, 60), formOn(b.duration_fixed, true),
       ['full','truncated','blocked'].includes(b.late_start_behavior) ? b.late_start_behavior : 'full',
-      formOptInt(b.pass_mark), b.grade_release_at || null,
+      formOptInt(b.pass_mark), bjToUTC(b.grade_release_at),
       formOn(b.show_correct_answers, true), formOn(b.show_feedback, true),
       formOn(b.shuffle_questions, true), formOn(b.shuffle_choices, true),
       formInt(b.max_attempts, 1),
@@ -825,10 +833,10 @@ app.post('/course/:id/quizzes/:quiz_id', async (req, res) => {
       WHERE id = $18 AND course_id = $19
     `, [
       b.title ? b.title.trim() : null, b.description || null, b.instructions || null,
-      b.open_at || null, b.close_at || null,
+      bjToUTC(b.open_at), bjToUTC(b.close_at),
       formInt(b.duration_minutes, 60), formOn(b.duration_fixed, true),
       ['full','truncated','blocked'].includes(b.late_start_behavior) ? b.late_start_behavior : 'full',
-      formOptInt(b.pass_mark), b.grade_release_at || null,
+      formOptInt(b.pass_mark), bjToUTC(b.grade_release_at),
       formOn(b.show_correct_answers, true), formOn(b.show_feedback, true),
       formOn(b.shuffle_questions, true), formOn(b.shuffle_choices, true),
       formInt(b.max_attempts, 1), formOn(b.anti_cheat_enabled, true),
@@ -994,18 +1002,14 @@ app.post('/course/:id/quizzes/:quiz_id/questions/:question_id/delete', async (re
 });
 
 // ============================================
-// ============================================
 // QUIZ — STEP 3: STUDENT FLOW + GRADING
 // ============================================
-// ============================================
 
-// ---------- START QUIZ ----------
 app.post('/course/:id/quizzes/:quiz_id/start', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id: courseId, quiz_id } = req.params;
 
   try {
-    // Must be enrolled in this course
     const enroll = await pool.query(
       `SELECT 1 FROM enrollments WHERE course_id = $1 AND user_id = $2 LIMIT 1`,
       [courseId, req.session.user.id]);
@@ -1017,37 +1021,30 @@ app.post('/course/:id/quizzes/:quiz_id/start', async (req, res) => {
     if (qRes.rows.length === 0) return res.status(404).send("Quiz not found or not published.");
     const quiz = qRes.rows[0];
 
-    // Window checks
     const now = new Date();
     if (quiz.open_at && new Date(quiz.open_at) > now) return res.status(400).send("Quiz is not open yet.");
     if (quiz.close_at && new Date(quiz.close_at) <= now) return res.status(400).send("Quiz is closed.");
 
-    // Existing attempt?
     const existing = await pool.query(
       `SELECT * FROM lms_quiz_attempts WHERE quiz_id = $1 AND student_id = $2 ORDER BY started_at DESC`,
       [quiz_id, req.session.user.id]);
 
-    // If there's already an in-progress attempt, resume it (same timer)
     const inProg = existing.rows.find(a => a.status === 'in_progress');
     if (inProg) return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/take`);
 
-    // Attempt count check
     if (existing.rows.length >= quiz.max_attempts) {
       return res.status(400).send("Maximum attempts reached.");
     }
 
-    // Compute ends_at
     const durationMs = quiz.duration_minutes * 60 * 1000;
     let endsAt = new Date(now.getTime() + durationMs);
 
-    // Truncation at close_at when duration_fixed
     if (quiz.duration_fixed && quiz.close_at && endsAt > new Date(quiz.close_at)) {
       if (quiz.late_start_behavior === 'blocked') {
         return res.status(400).send("Too late to start — not enough time before close.");
       } else if (quiz.late_start_behavior === 'truncated') {
         endsAt = new Date(quiz.close_at);
       }
-      // 'full' → keep endsAt (grace window past close)
     }
 
     const attemptNum = existing.rows.length + 1;
@@ -1071,7 +1068,6 @@ app.post('/course/:id/quizzes/:quiz_id/start', async (req, res) => {
   }
 });
 
-// ---------- TAKE QUIZ (serve current question only) ----------
 app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id: courseId, quiz_id } = req.params;
@@ -1093,14 +1089,12 @@ app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
     if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
     const attempt = aRes.rows[0];
 
-    // Server-authoritative timer
     const now = new Date();
     if (now >= new Date(attempt.ends_at)) {
       await autoSubmitAttempt(attempt.id, quiz_id);
       return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
     }
 
-    // Load questions (shuffled per attempt if enabled)
     const allQ = await pool.query(
       `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position`, [quiz_id]);
     if (allQ.rows.length === 0) return res.status(400).send("Quiz has no questions.");
@@ -1115,7 +1109,6 @@ app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
     }
     const currentQ = questions[idx];
 
-    // Load choices (never include is_correct in the payload sent to browser)
     let choices = [];
     if (currentQ.type === 'MCQ' || currentQ.type === 'TF') {
       const cRes = await pool.query(
@@ -1125,7 +1118,6 @@ app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
       if (quiz.shuffle_choices) choices = shuffleSeeded(choices, `c_${attempt.id}_${currentQ.id}`);
     }
 
-    // Load existing answer (resume after browser crash)
     const ansRes = await pool.query(
       `SELECT * FROM lms_quiz_answers WHERE attempt_id = $1 AND question_id = $2`,
       [attempt.id, currentQ.id]);
@@ -1133,7 +1125,6 @@ app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
 
     const remainingSeconds = Math.max(0, Math.floor((new Date(attempt.ends_at) - now) / 1000));
 
-    // Anti-cheat: write last_activity_at
     await pool.query(`UPDATE lms_quiz_attempts SET last_activity_at = NOW() WHERE id = $1`, [attempt.id]);
 
     res.render('lms-quiz-take', {
@@ -1153,7 +1144,6 @@ app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
   }
 });
 
-// ---------- SAVE ANSWER + ADVANCE ----------
 app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id: courseId, quiz_id } = req.params;
@@ -1167,7 +1157,6 @@ app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
     if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
     const attempt = aRes.rows[0];
 
-    // Server-authoritative timer
     if (new Date() >= new Date(attempt.ends_at)) {
       await autoSubmitAttempt(attempt.id, quiz_id);
       return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
@@ -1188,7 +1177,6 @@ app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
     }
     const currentQ = questions[idx];
 
-    // Parse student answer per type
     let studentAnswer = null;
     if (currentQ.type === 'MCQ') {
       const ids = [].concat(req.body.choice_ids || []).map(x => parseInt(x, 10)).filter(Number.isFinite);
@@ -1201,7 +1189,6 @@ app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
       studentAnswer = { value: String(req.body.text_value || '') };
     }
 
-    // Save (upsert)
     await pool.query(`
       INSERT INTO lms_quiz_answers (attempt_id, question_id, student_answer, answered_at)
       VALUES ($1, $2, $3, NOW())
@@ -1209,7 +1196,6 @@ app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
       DO UPDATE SET student_answer = EXCLUDED.student_answer, answered_at = NOW()
     `, [attempt.id, currentQ.id, studentAnswer]);
 
-    // Advance
     const newIdx = idx + 1;
     const isLast = newIdx >= questions.length;
     await pool.query(
@@ -1227,7 +1213,6 @@ app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
   }
 });
 
-// ---------- MANUAL SUBMIT ----------
 app.post('/course/:id/quizzes/:quiz_id/submit', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id: courseId, quiz_id } = req.params;
@@ -1248,8 +1233,6 @@ app.post('/course/:id/quizzes/:quiz_id/submit', async (req, res) => {
   }
 });
 
-// ---------- ANTI-CHEAT FLAG ----------
-// Body: { reason?: 'tab_switch' | 'copy' | 'blur' }
 app.post('/course/:id/quizzes/:quiz_id/flag', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ ok: false });
   const { quiz_id } = req.params;
@@ -1290,7 +1273,6 @@ app.post('/course/:id/quizzes/:quiz_id/flag', async (req, res) => {
   }
 });
 
-// ---------- STUDENT: RESULT / FEEDBACK ----------
 app.get('/course/:id/quizzes/:quiz_id/result', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id: courseId, quiz_id } = req.params;
@@ -1312,11 +1294,9 @@ app.get('/course/:id/quizzes/:quiz_id/result', async (req, res) => {
     if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
     const attempt = aRes.rows[0];
 
-    // Auto-release if gate is open
     const isReleased = await maybeRelease(attempt, quiz);
     if (isReleased) attempt.status = 'released';
 
-    // Load per-question breakdown only if released
     let breakdown = [];
     if (attempt.status === 'released') {
       const qq = await pool.query(
@@ -1382,7 +1362,6 @@ app.get('/course/:id/quizzes/:quiz_id/result', async (req, res) => {
   }
 });
 
-// ---------- TEACHER: FORCE-CLOSE ----------
 app.post('/course/:id/quizzes/:quiz_id/force-close', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
@@ -1393,7 +1372,6 @@ app.post('/course/:id/quizzes/:quiz_id/force-close', async (req, res) => {
       `SELECT id FROM lms_quiz_attempts WHERE quiz_id = $1 AND status = 'in_progress'`,
       [quiz_id]);
     for (const row of inProg.rows) await autoSubmitAttempt(row.id, quiz_id);
-    // Also close the quiz window itself
     await pool.query(`UPDATE lms_quizzes SET is_published = FALSE WHERE id = $1`, [quiz_id]);
 
     console.log(`[force-close] quiz ${quiz_id}: submitted ${inProg.rows.length} in-progress attempts`);
@@ -1404,7 +1382,6 @@ app.post('/course/:id/quizzes/:quiz_id/force-close', async (req, res) => {
   }
 });
 
-// ---------- TEACHER: GRADING QUEUE ----------
 app.get('/course/:id/quizzes/:quiz_id/grading', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
@@ -1425,7 +1402,6 @@ app.get('/course/:id/quizzes/:quiz_id/grading', async (req, res) => {
       ORDER BY u.full_name ASC, a.submitted_at ASC
     `, [quiz_id]);
 
-    // Attach per-question answers + which questions need manual grading
     const manualQ = await pool.query(
       `SELECT id, prompt, marks, type, correct_answer
        FROM lms_quiz_questions
@@ -1455,8 +1431,6 @@ app.get('/course/:id/quizzes/:quiz_id/grading', async (req, res) => {
   }
 });
 
-// ---------- TEACHER: SAVE MANUAL GRADES ----------
-// Form posts: manual_score_<question_id> = number, feedback_<question_id> = text
 app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id, attempt_id } = req.params;
@@ -1468,7 +1442,6 @@ app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) =>
       [attempt_id, quiz_id]);
     if (aCheck.rows.length === 0) return res.status(404).send("Attempt not found.");
 
-    // Only grade questions on this quiz that need manual grading
     const manualQ = await pool.query(
       `SELECT id, marks FROM lms_quiz_questions WHERE quiz_id = $1 AND auto_grade = FALSE`,
       [quiz_id]);
@@ -1491,7 +1464,6 @@ app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) =>
       `, [attempt_id, q.id, score, feedback || null]);
     }
 
-    // Recompute totals + is_graded
     const totals = await pool.query(`
       SELECT COALESCE(SUM(COALESCE(auto_score,0) + COALESCE(manual_score,0)), 0) AS total
       FROM lms_quiz_answers WHERE attempt_id = $1
@@ -1502,7 +1474,6 @@ app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) =>
     const totalMarks = Number(quizRes.rows[0]?.total_marks) || 0;
     const pct = totalMarks > 0 ? (totalScore / totalMarks) * 100 : 0;
 
-    // Check if all manual questions are scored
     const unscored = await pool.query(`
       SELECT COUNT(*) AS n FROM lms_quiz_questions q
       LEFT JOIN lms_quiz_answers a ON a.question_id = q.id AND a.attempt_id = $1
