@@ -483,7 +483,7 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- GRADES VIEW (NEWLY ADDED) -->
+        <!-- GRADES VIEW (COMBINED ASSIGNMENTS & QUIZZES) -->
         <!-- ============================================== -->
         <% if (view === 'grades') { %>
           <div class="section-header">
@@ -498,12 +498,13 @@
                     <% if (isTeacher) { %>
                       <th>Student</th>
                     <% } %>
-                    <th>Assignment</th>
+                    <th>Item Title</th>
+                    <th>Type</th>
                     <th>Submitted At</th>
-                    <th>Grade</th>
-                    <th>File</th>
+                    <th>Score</th>
+                    <th>File / Action</th>
                     <% if (isTeacher) { %>
-                      <th>Action</th>
+                      <th>Grading Action</th>
                     <% } else { %>
                       <th>Feedback</th>
                     <% } %>
@@ -515,12 +516,19 @@
                       <% if (isTeacher) { %>
                         <td style="font-weight: 600; color: var(--text-main);"><%= g.student_name %></td>
                       <% } %>
-                      <td style="font-weight: 600; color: var(--text-main);"><%= g.assignment_title %></td>
+                      <td style="font-weight: 600; color: var(--text-main);"><%= g.item_title %></td>
+                      <td>
+                        <% if (g.item_type === 'Quiz') { %>
+                          <span style="background: rgba(14,165,233,0.1); color: #0ea5e9; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;">Quiz / Exam</span>
+                        <% } else { %>
+                          <span style="background: rgba(245,158,11,0.1); color: #f59e0b; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;">Assignment</span>
+                        <% } %>
+                      </td>
                       <td style="color: var(--text-muted);">
                         <%= g.submitted_at ? new Date(g.submitted_at).toLocaleDateString() : 'Not submitted' %>
                       </td>
-                      <td style="font-weight: bold; color: <%= g.grade !== null ? '#10b981' : '#ef4444' %>;">
-                        <%= g.grade !== null ? g.grade : 'Pending' %> / <%= g.max_points %>
+                      <td style="font-weight: bold; color: <%= g.score !== null ? '#10b981' : '#ef4444' %>;">
+                        <%= g.score !== null ? g.score : 'Pending' %> / <%= g.max_points %>
                       </td>
                       <td>
                         <% if (g.file_url) { %>
@@ -530,15 +538,22 @@
                         <% } %>
                       </td>
                       
-                      <!-- Teacher Inline Grading Form -->
+                      <!-- Teacher Actions -->
                       <% if (isTeacher) { %>
                         <td>
-                          <form action="/course/<%= course.id %>/grades/<%= g.submission_id %>" method="POST" style="display: flex; gap: 8px; align-items: center;">
-                            <input type="hidden" name="assignment_id" value="<%= g.assignment_id %>">
-                            <input type="number" name="grade" value="<%= g.grade || '' %>" placeholder="Score" class="form-input" style="width: 70px; padding: 6px 10px; font-size: 12px;" max="<%= g.max_points %>" min="0">
-                            <input type="text" name="feedback" value="<%= g.feedback || '' %>" placeholder="Feedback" class="form-input" style="width: 140px; padding: 6px 10px; font-size: 12px;">
-                            <button type="submit" class="btn" style="padding: 6px 12px; font-size: 12px;">Save</button>
-                          </form>
+                          <% if (g.item_type === 'Assignment') { %>
+                            <!-- Inline grading for Assignments -->
+                            <form action="/course/<%= course.id %>/grades/<%= g.record_id %>" method="POST" style="display: flex; gap: 8px; align-items: center;">
+                              <input type="number" name="grade" value="<%= g.score || '' %>" placeholder="Score" class="form-input" style="width: 70px; padding: 6px 10px; font-size: 12px;" max="<%= g.max_points %>" min="0">
+                              <input type="text" name="feedback" value="<%= g.feedback || '' %>" placeholder="Feedback" class="form-input" style="width: 140px; padding: 6px 10px; font-size: 12px;">
+                              <button type="submit" class="btn" style="padding: 6px 12px; font-size: 12px;">Save</button>
+                            </form>
+                          <% } else { %>
+                            <!-- Quizzes link to Quiz module -->
+                            <a href="/course/<%= course.id %>?view=quizzes" class="btn-action btn-view" style="display: inline-flex; padding: 6px 12px; border-radius: 6px; font-size: 12px;">
+                              <i class="fa-solid fa-check-double"></i> View Quizzes
+                            </a>
+                          <% } %>
                         </td>
                       <% } else { %>
                         <!-- Student Feedback View -->
@@ -554,14 +569,14 @@
               <div style="text-align: center; padding: 40px; color: var(--text-muted);">
                 <i class="fa-solid fa-clipboard-list" style="font-size: 48px; margin-bottom: 16px; color: var(--border);"></i>
                 <h3 style="color: var(--text-main); margin-bottom: 8px;">No Grades Available</h3>
-                <p>No assignment submissions have been graded yet.</p>
+                <p>No assignments or quizzes have been completed yet.</p>
               </div>
             <% } %>
           </div>
         <% } %>
 
         <!-- ============================================== -->
-        <!-- OTHER VIEWS PLACEHOLDER (Updated to exclude grades) -->
+        <!-- OTHER VIEWS PLACEHOLDER (EXCLUDES GRADES) -->
         <!-- ============================================== -->
         <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades') { %>
           <div class="section-header">

@@ -46,7 +46,7 @@ try {
   sessionStore = new pgSession({
     pool: pool,
     tableName: 'user_sessions',
-    createTableIfMissing: true   // FIX: was false, silently dropping sessions on fresh DBs
+    createTableIfMissing: true
   });
   console.log('[session] PostgreSQL session store loaded.');
 } catch (err) {
@@ -342,7 +342,7 @@ async function maybeRelease(attempt, quiz) {
 }
 
 // ============================================
-// --- GRADEBOOK HELPERS (previously missing!) ---
+// --- GRADEBOOK HELPERS ---
 // ============================================
 async function ensureGradeSettings(courseId) {
   const existing = await pool.query(
@@ -624,32 +624,52 @@ app.get('/course/:id', async (req, res) => {
       const st = await pool.query(`SELECT u.id, u.full_name, sp.admission_number, u.email FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id WHERE e.course_id = $1`, [courseId]); students = st.rows;
     }
 
+    // ============================================
+    // STEP 2 FIX: COMBINE ASSIGNMENTS AND QUIZZES IN GRADEBOOK
+    // ============================================
     if (view === 'grades') {
       if (isTeacher) {
-        let gSql = `
-          SELECT s.id as submission_id, s.assignment_id, s.file_url, s.submitted_at, s.grade, s.feedback,
-                 u.full_name as student_name, u.id as student_id, a.title as assignment_title, a.max_points
+        const r = await pool.query(`
+          SELECT 
+            s.id as record_id, 'Assignment' as item_type, s.submitted_at, s.grade as score, s.feedback, s.file_url,
+            u.full_name as student_name, u.id as student_id, a.title as item_title, a.max_points
           FROM lms_submissions s
           JOIN lms_assignments a ON a.id = s.assignment_id
           JOIN users u ON u.id = s.student_id
           WHERE a.course_id = $1
-        `;
-        const params = [courseId];
-        if (req.query.assignment_id) {
-          gSql += ` AND a.id = $2`;
-          params.push(req.query.assignment_id);
-        }
-        gSql += ` ORDER BY a.due_date ASC, u.full_name ASC`;
-        const r = await pool.query(gSql, params);
+          
+          UNION ALL
+          
+          SELECT 
+            qa.id as record_id, 'Quiz' as item_type, qa.submitted_at, qa.total_score as score, 'Auto-graded' as feedback, null as file_url,
+            u.full_name as student_name, u.id as student_id, q.title as item_title, q.total_marks as max_points
+          FROM lms_quiz_attempts qa
+          JOIN lms_quizzes q ON q.id = qa.quiz_id
+          JOIN users u ON u.id = qa.student_id
+          WHERE q.course_id = $1 AND qa.status IN ('submitted', 'graded', 'released')
+          
+          ORDER BY student_name ASC, submitted_at DESC
+        `, [courseId]);
         grades = r.rows;
       } else {
         const r = await pool.query(`
-          SELECT s.id as submission_id, s.file_url, s.submitted_at, s.grade, s.feedback,
-                 a.title as assignment_title, a.max_points, a.due_date
+          SELECT 
+            s.id as record_id, 'Assignment' as item_type, s.submitted_at, s.grade as score, s.feedback, s.file_url,
+            a.title as item_title, a.max_points
           FROM lms_submissions s
           JOIN lms_assignments a ON a.id = s.assignment_id
           WHERE s.student_id = $1 AND a.course_id = $2
-          ORDER BY a.due_date ASC
+          
+          UNION ALL
+          
+          SELECT 
+            qa.id as record_id, 'Quiz' as item_type, qa.submitted_at, qa.total_score as score, 'Auto-graded' as feedback, null as file_url,
+            q.title as item_title, q.total_marks as max_points
+          FROM lms_quiz_attempts qa
+          JOIN lms_quizzes q ON q.id = qa.quiz_id
+          WHERE qa.student_id = $1 AND q.course_id = $2 AND qa.status IN ('submitted', 'graded', 'released')
+          
+          ORDER BY submitted_at DESC
         `, [req.session.user.id, courseId]);
         grades = r.rows;
       }
@@ -1602,7 +1622,7 @@ app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) =>
 
 // GET: rules page
 app.get('/course/:id/gradebook/setup/rules', async (req, res) => {
-  if (!req.session.user) return res.redirect('/login');   // FIX: was missing → caused "Access Denied" when session lost
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
