@@ -46,7 +46,7 @@ try {
   sessionStore = new pgSession({
     pool: pool,
     tableName: 'user_sessions',
-    createTableIfMissing: false
+    createTableIfMissing: true   // FIX: was false, silently dropping sessions on fresh DBs
   });
   console.log('[session] PostgreSQL session store loaded.');
 } catch (err) {
@@ -139,7 +139,7 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// --- TZ HELPER: display stored UTC as Burundi time in <input type="datetime-local"> ---
+// --- TZ HELPER: display stored UTC as Burundi time ---
 // ============================================
 app.locals.toBjInput = function (ts) {
   if (!ts) return '';
@@ -190,19 +190,16 @@ function formOptInt(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// NEW: Treat datetime-local value as Burundi time (UTC+2, no DST) → Postgres-safe ISO.
-// If input already has timezone info (Z or ±HH:MM), leave it alone.
 function bjToUTC(v) {
   if (!v) return null;
   if (typeof v !== 'string') return v;
-  if (v.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(v)) return v;       // already tagged
-  if (/T\d{2}:\d{2}:\d{2}$/.test(v)) return v + '+02:00';             // has seconds
-  if (/T\d{2}:\d{2}$/.test(v)) return v + ':00+02:00';                // no seconds
+  if (v.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(v)) return v;
+  if (/T\d{2}:\d{2}:\d{2}$/.test(v)) return v + '+02:00';
+  if (/T\d{2}:\d{2}$/.test(v)) return v + ':00+02:00';
   return v;
 }
 
 // ---------- QUIZ HELPERS ----------
-
 function shuffleSeeded(arr, seed) {
   const h = (s) => {
     let x = 0;
@@ -342,6 +339,96 @@ async function maybeRelease(attempt, quiz) {
     `UPDATE lms_quiz_attempts SET status='released', released_at=NOW() WHERE id=$1`,
     [attempt.id]);
   return true;
+}
+
+// ============================================
+// --- GRADEBOOK HELPERS (previously missing!) ---
+// ============================================
+async function ensureGradeSettings(courseId) {
+  const existing = await pool.query(
+    `SELECT * FROM lms_grade_settings WHERE course_id = $1`, [courseId]);
+  if (existing.rows.length > 0) return existing.rows[0];
+
+  const ins = await pool.query(`
+    INSERT INTO lms_grade_settings
+      (course_id, weighting_mode, curve_mode, rounding_rule, publish_state, curve_locked)
+    VALUES ($1, 'weighted', 'none', 'half_up', 'draft', FALSE)
+    RETURNING *
+  `, [courseId]);
+  return ins.rows[0];
+}
+
+async function listCourseAssessments(courseId) {
+  const r = await pool.query(`
+    SELECT id, 'assignment'::text AS item_type, title, max_points,
+           due_date, is_published
+    FROM lms_assignments WHERE course_id = $1 AND is_published = TRUE
+    UNION ALL
+    SELECT id, 'quiz'::text AS item_type, title, total_marks AS max_points,
+           close_at AS due_date, is_published
+    FROM lms_quizzes WHERE course_id = $1 AND is_published = TRUE
+    ORDER BY due_date NULLS LAST, title
+  `, [courseId]);
+  return r.rows;
+}
+
+async function getCategoriesForCourse(courseId) {
+  const cats = await pool.query(
+    `SELECT id, name, weight_pct, drop_lowest_n, sort_order
+     FROM lms_grade_categories WHERE course_id = $1 ORDER BY sort_order, id`,
+    [courseId]);
+  const result = cats.rows.map(c => ({ ...c, items: [] }));
+  if (result.length === 0) return result;
+  const catIds = result.map(c => c.id);
+  const items = await pool.query(
+    `SELECT category_id, item_type, item_id FROM lms_grade_category_items
+     WHERE category_id = ANY($1)`, [catIds]);
+  const byCat = {};
+  for (const it of items.rows) {
+    if (!byCat[it.category_id]) byCat[it.category_id] = [];
+    byCat[it.category_id].push({ item_type: it.item_type, item_id: it.item_id });
+  }
+  for (const c of result) c.items = byCat[c.id] || [];
+  return result;
+}
+
+function parseCategoriesFromBody(body) {
+  if (!body || !body.cats) return [];
+  const cats = [];
+  const keys = Object.keys(body.cats)
+    .filter(k => /^\d+$/.test(k))
+    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  for (const k of keys) {
+    const c = body.cats[k];
+    if (!c) continue;
+    const name = String(c.name || '').trim();
+    if (!name) throw new Error('Every category needs a name');
+    const weight = Number(c.weight_pct);
+    if (!Number.isFinite(weight) || weight < 0 || weight > 100)
+      throw new Error(`Invalid weight for "${name}"`);
+    const drop = Math.max(0, parseInt(c.drop_lowest_n, 10) || 0);
+    const rawIds = [].concat(c.item_ids || []);
+    const itemPairs = [];
+    for (const v of rawIds) {
+      const s = String(v || '');
+      const [t, idStr] = s.split(':');
+      const id = parseInt(idStr, 10);
+      if (!['assignment', 'quiz'].includes(t) || !Number.isFinite(id))
+        throw new Error(`Bad item reference: "${s}"`);
+      itemPairs.push({ item_type: t, item_id: id });
+    }
+    cats.push({ name, weight_pct: weight, drop_lowest_n: drop, items: itemPairs });
+  }
+  const seen = new Map();
+  for (const c of cats) {
+    for (const it of c.items) {
+      const key = `${it.item_type}:${it.item_id}`;
+      if (seen.has(key))
+        throw new Error(`Item ${key} is assigned to more than one category ("${seen.get(key)}" and "${c.name}")`);
+      seen.set(key, c.name);
+    }
+  }
+  return cats;
 }
 
 // ============================================
@@ -658,6 +745,7 @@ app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
 // ASSIGNMENTS — CREATE
 // ============================================
 app.post('/course/:id/assignments', upload.single('attachment'), async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
 
   const courseId = req.params.id;
@@ -703,6 +791,7 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
 // ASSIGNMENTS — TOGGLE
 // ============================================
 app.post('/course/:id/assignments/:assignment_id/toggle', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id, assignment_id } = req.params;
   try {
@@ -744,6 +833,7 @@ app.post('/course/:id/assignments/:assignment_id/submit', upload.single('submiss
 // SAVE GRADE (assignments)
 // ============================================
 app.post('/course/:id/grades/:submission_id', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) {
     return res.status(403).send("Access Denied.");
   }
@@ -772,6 +862,7 @@ app.post('/course/:id/grades/:submission_id', async (req, res) => {
 // QUIZ BUILDER (Teacher)
 // ============================================
 app.post('/course/:id/quizzes', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -815,6 +906,7 @@ app.post('/course/:id/quizzes', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -851,6 +943,7 @@ app.post('/course/:id/quizzes/:quiz_id', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id/publish', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -877,6 +970,7 @@ app.post('/course/:id/quizzes/:quiz_id/publish', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id/delete', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -890,6 +984,7 @@ app.post('/course/:id/quizzes/:quiz_id/delete', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id/questions', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -989,6 +1084,7 @@ app.post('/course/:id/quizzes/:quiz_id/questions', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id/questions/:question_id/delete', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id, question_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -1002,9 +1098,8 @@ app.post('/course/:id/quizzes/:quiz_id/questions/:question_id/delete', async (re
 });
 
 // ============================================
-// QUIZ — STEP 3: STUDENT FLOW + GRADING
+// QUIZ — STUDENT FLOW + GRADING
 // ============================================
-
 app.post('/course/:id/quizzes/:quiz_id/start', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id: courseId, quiz_id } = req.params;
@@ -1363,6 +1458,7 @@ app.get('/course/:id/quizzes/:quiz_id/result', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id/force-close', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -1383,6 +1479,7 @@ app.post('/course/:id/quizzes/:quiz_id/force-close', async (req, res) => {
 });
 
 app.get('/course/:id/quizzes/:quiz_id/grading', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -1432,6 +1529,7 @@ app.get('/course/:id/quizzes/:quiz_id/grading', async (req, res) => {
 });
 
 app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id: courseId, quiz_id, attempt_id } = req.params;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -1502,86 +1600,9 @@ app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) =>
 // GRADEBOOK — G-3: Categories, Weights, Curve, Rounding
 // ============================================
 
-// ---- Helpers ----
-
-async function listCourseAssessments(courseId) {
-  const r = await pool.query(`
-    SELECT id, 'assignment'::text AS item_type, title, max_points,
-           due_date, is_published
-    FROM lms_assignments WHERE course_id = $1 AND is_published = TRUE
-    UNION ALL
-    SELECT id, 'quiz'::text AS item_type, title, total_marks AS max_points,
-           close_at AS due_date, is_published
-    FROM lms_quizzes WHERE course_id = $1 AND is_published = TRUE
-    ORDER BY due_date NULLS LAST, title
-  `, [courseId]);
-  return r.rows;
-}
-
-async function getCategoriesForCourse(courseId) {
-  const cats = await pool.query(
-    `SELECT id, name, weight_pct, drop_lowest_n, sort_order
-     FROM lms_grade_categories WHERE course_id = $1 ORDER BY sort_order, id`,
-    [courseId]);
-  const result = cats.rows.map(c => ({ ...c, items: [] }));
-  if (result.length === 0) return result;
-  const catIds = result.map(c => c.id);
-  const items = await pool.query(
-    `SELECT category_id, item_type, item_id FROM lms_grade_category_items
-     WHERE category_id = ANY($1)`, [catIds]);
-  const byCat = {};
-  for (const it of items.rows) {
-    if (!byCat[it.category_id]) byCat[it.category_id] = [];
-    byCat[it.category_id].push({ item_type: it.item_type, item_id: it.item_id });
-  }
-  for (const c of result) c.items = byCat[c.id] || [];
-  return result;
-}
-
-function parseCategoriesFromBody(body) {
-  if (!body || !body.cats) return [];
-  const cats = [];
-  const keys = Object.keys(body.cats)
-    .filter(k => /^\d+$/.test(k))
-    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-  for (const k of keys) {
-    const c = body.cats[k];
-    if (!c) continue;
-    const name = String(c.name || '').trim();
-    if (!name) throw new Error('Every category needs a name');
-    const weight = Number(c.weight_pct);
-    if (!Number.isFinite(weight) || weight < 0 || weight > 100)
-      throw new Error(`Invalid weight for "${name}"`);
-    const drop = Math.max(0, parseInt(c.drop_lowest_n, 10) || 0);
-    const rawIds = [].concat(c.item_ids || []);
-    const itemPairs = [];
-    for (const v of rawIds) {
-      const s = String(v || '');
-      const [t, idStr] = s.split(':');
-      const id = parseInt(idStr, 10);
-      if (!['assignment', 'quiz'].includes(t) || !Number.isFinite(id))
-        throw new Error(`Bad item reference: "${s}"`);
-      itemPairs.push({ item_type: t, item_id: id });
-    }
-    cats.push({ name, weight_pct: weight, drop_lowest_n: drop, items: itemPairs });
-  }
-  // Duplicate check across all categories
-  const seen = new Map();
-  for (const c of cats) {
-    for (const it of c.items) {
-      const key = `${it.item_type}:${it.item_id}`;
-      if (seen.has(key))
-        throw new Error(`Item ${key} is assigned to more than one category ("${seen.get(key)}" and "${c.name}")`);
-      seen.set(key, c.name);
-    }
-  }
-  return cats;
-}
-
-// ---- Routes ----
-
-// GET: rules page (weighting mode + categories + curve + rounding)
+// GET: rules page
 app.get('/course/:id/gradebook/setup/rules', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');   // FIX: was missing → caused "Access Denied" when session lost
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -1596,7 +1617,6 @@ app.get('/course/:id/gradebook/setup/rules', async (req, res) => {
     const categories = await getCategoriesForCourse(courseId);
     const assessments = await listCourseAssessments(courseId);
 
-    // Compute assignment coverage
     const assignedKeys = new Set();
     for (const c of categories) for (const it of c.items) assignedKeys.add(`${it.item_type}:${it.item_id}`);
     const unassigned = assessments.filter(a => !assignedKeys.has(`${a.item_type}:${a.id}`));
@@ -1614,8 +1634,9 @@ app.get('/course/:id/gradebook/setup/rules', async (req, res) => {
   }
 });
 
-// POST: save general settings (weighting mode, curve, rounding)
+// POST: save general settings
 app.post('/course/:id/gradebook/setup/rules/general', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
@@ -1661,6 +1682,7 @@ app.post('/course/:id/gradebook/setup/rules/general', async (req, res) => {
 
 // POST: save categories (full replace)
 app.post('/course/:id/gradebook/setup/rules/categories', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
   if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
