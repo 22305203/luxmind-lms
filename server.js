@@ -1497,6 +1497,227 @@ app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) =>
   }
 });
 
+
+// ============================================
+// GRADEBOOK — G-3: Categories, Weights, Curve, Rounding
+// ============================================
+
+// ---- Helpers ----
+
+async function listCourseAssessments(courseId) {
+  const r = await pool.query(`
+    SELECT id, 'assignment'::text AS item_type, title, max_points,
+           due_date, is_published
+    FROM lms_assignments WHERE course_id = $1 AND is_published = TRUE
+    UNION ALL
+    SELECT id, 'quiz'::text AS item_type, title, total_marks AS max_points,
+           close_at AS due_date, is_published
+    FROM lms_quizzes WHERE course_id = $1 AND is_published = TRUE
+    ORDER BY due_date NULLS LAST, title
+  `, [courseId]);
+  return r.rows;
+}
+
+async function getCategoriesForCourse(courseId) {
+  const cats = await pool.query(
+    `SELECT id, name, weight_pct, drop_lowest_n, sort_order
+     FROM lms_grade_categories WHERE course_id = $1 ORDER BY sort_order, id`,
+    [courseId]);
+  const result = cats.rows.map(c => ({ ...c, items: [] }));
+  if (result.length === 0) return result;
+  const catIds = result.map(c => c.id);
+  const items = await pool.query(
+    `SELECT category_id, item_type, item_id FROM lms_grade_category_items
+     WHERE category_id = ANY($1)`, [catIds]);
+  const byCat = {};
+  for (const it of items.rows) {
+    if (!byCat[it.category_id]) byCat[it.category_id] = [];
+    byCat[it.category_id].push({ item_type: it.item_type, item_id: it.item_id });
+  }
+  for (const c of result) c.items = byCat[c.id] || [];
+  return result;
+}
+
+function parseCategoriesFromBody(body) {
+  if (!body || !body.cats) return [];
+  const cats = [];
+  const keys = Object.keys(body.cats)
+    .filter(k => /^\d+$/.test(k))
+    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  for (const k of keys) {
+    const c = body.cats[k];
+    if (!c) continue;
+    const name = String(c.name || '').trim();
+    if (!name) throw new Error('Every category needs a name');
+    const weight = Number(c.weight_pct);
+    if (!Number.isFinite(weight) || weight < 0 || weight > 100)
+      throw new Error(`Invalid weight for "${name}"`);
+    const drop = Math.max(0, parseInt(c.drop_lowest_n, 10) || 0);
+    const rawIds = [].concat(c.item_ids || []);
+    const itemPairs = [];
+    for (const v of rawIds) {
+      const s = String(v || '');
+      const [t, idStr] = s.split(':');
+      const id = parseInt(idStr, 10);
+      if (!['assignment', 'quiz'].includes(t) || !Number.isFinite(id))
+        throw new Error(`Bad item reference: "${s}"`);
+      itemPairs.push({ item_type: t, item_id: id });
+    }
+    cats.push({ name, weight_pct: weight, drop_lowest_n: drop, items: itemPairs });
+  }
+  // Duplicate check across all categories
+  const seen = new Map();
+  for (const c of cats) {
+    for (const it of c.items) {
+      const key = `${it.item_type}:${it.item_id}`;
+      if (seen.has(key))
+        throw new Error(`Item ${key} is assigned to more than one category ("${seen.get(key)}" and "${c.name}")`);
+      seen.set(key, c.name);
+    }
+  }
+  return cats;
+}
+
+// ---- Routes ----
+
+// GET: rules page (weighting mode + categories + curve + rounding)
+app.get('/course/:id/gradebook/setup/rules', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const courseRes = await pool.query(
+      `SELECT id, code, title, credits FROM courses WHERE id = $1`, [courseId]);
+    if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
+    const course = courseRes.rows[0];
+
+    const settings = await ensureGradeSettings(courseId);
+    const categories = await getCategoriesForCourse(courseId);
+    const assessments = await listCourseAssessments(courseId);
+
+    // Compute assignment coverage
+    const assignedKeys = new Set();
+    for (const c of categories) for (const it of c.items) assignedKeys.add(`${it.item_type}:${it.item_id}`);
+    const unassigned = assessments.filter(a => !assignedKeys.has(`${a.item_type}:${a.id}`));
+    const totalWeight = categories.reduce((s, c) => s + Number(c.weight_pct), 0);
+
+    res.render('lms-gradebook-rules', {
+      user: req.session.user,
+      course, settings, categories, assessments, unassigned, totalWeight,
+      flashError: req.query.error || null,
+      flashSuccess: req.query.success || null
+    });
+  } catch (err) {
+    console.error('[gradebook-rules]', err);
+    res.status(500).send("Gradebook Rules Error: " + err.message);
+  }
+});
+
+// POST: save general settings (weighting mode, curve, rounding)
+app.post('/course/:id/gradebook/setup/rules/general', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const s = await ensureGradeSettings(courseId);
+    if (s.publish_state !== 'draft') {
+      return res.redirect(`/course/${courseId}/gradebook/setup/rules?error=${encodeURIComponent('Gradebook is ' + s.publish_state + ' — cannot change rules')}`);
+    }
+    if (s.curve_locked) {
+      return res.redirect(`/course/${courseId}/gradebook/setup/rules?error=${encodeURIComponent('Curve is locked after publish')}`);
+    }
+
+    const wm = String(req.body.weighting_mode || 'weighted');
+    const cm = String(req.body.curve_mode || 'none');
+    const rr = String(req.body.rounding_rule || 'half_up');
+
+    if (!['simple', 'weighted'].includes(wm)) throw new Error('Invalid weighting mode');
+    if (!['none', 'linear_max100', 'linear_mean', 'sqrt', 'bell'].includes(cm)) throw new Error('Invalid curve');
+    if (!['none', 'integer', '1_decimal', 'half_up', 'half_even'].includes(rr)) throw new Error('Invalid rounding');
+
+    await pool.query(`
+      UPDATE lms_grade_settings SET
+        weighting_mode = $1, curve_mode = $2, rounding_rule = $3
+      WHERE course_id = $4
+    `, [wm, cm, rr, courseId]);
+
+    await pool.query(`
+      INSERT INTO lms_grade_audit (course_id, item_type, action, changed_by, reason, old_value, new_value)
+      VALUES ($1, 'gradebook', 'update', $2, 'General grade settings updated', $3, $4)
+    `, [
+      courseId, req.session.user.id,
+      JSON.stringify({ weighting_mode: s.weighting_mode, curve_mode: s.curve_mode, rounding_rule: s.rounding_rule }),
+      JSON.stringify({ weighting_mode: wm, curve_mode: cm, rounding_rule: rr })
+    ]);
+
+    res.redirect(`/course/${courseId}/gradebook/setup/rules?success=${encodeURIComponent('General settings saved')}`);
+  } catch (err) {
+    console.error('[gradebook-general-save]', err);
+    res.redirect(`/course/${courseId}/gradebook/setup/rules?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// POST: save categories (full replace)
+app.post('/course/:id/gradebook/setup/rules/categories', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const s = await ensureGradeSettings(courseId);
+    if (s.publish_state !== 'draft') {
+      return res.redirect(`/course/${courseId}/gradebook/setup/rules?error=${encodeURIComponent('Gradebook is ' + s.publish_state + ' — cannot change categories')}`);
+    }
+
+    const cats = parseCategoriesFromBody(req.body);
+    const oldCats = await getCategoriesForCourse(courseId);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM lms_grade_categories WHERE course_id = $1`, [courseId]);
+      let sort = 0;
+      for (const c of cats) {
+        const ins = await client.query(
+          `INSERT INTO lms_grade_categories
+             (course_id, name, weight_pct, drop_lowest_n, sort_order)
+           VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+          [courseId, c.name, c.weight_pct, c.drop_lowest_n, sort++]);
+        const catId = ins.rows[0].id;
+        for (const it of c.items) {
+          await client.query(
+            `INSERT INTO lms_grade_category_items (category_id, item_type, item_id)
+             VALUES ($1,$2,$3)`,
+            [catId, it.item_type, it.item_id]);
+        }
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const newCats = await getCategoriesForCourse(courseId);
+    await pool.query(`
+      INSERT INTO lms_grade_audit (course_id, item_type, action, changed_by, reason, old_value, new_value)
+      VALUES ($1, 'gradebook', 'update', $2, 'Categories replaced', $3, $4)
+    `, [
+      courseId, req.session.user.id,
+      JSON.stringify(oldCats.map(c => ({ name: c.name, weight: c.weight_pct, items: c.items }))),
+      JSON.stringify(newCats.map(c => ({ name: c.name, weight: c.weight_pct, items: c.items })))
+    ]);
+
+    res.redirect(`/course/${courseId}/gradebook/setup/rules?success=${encodeURIComponent('Categories saved')}`);
+  } catch (err) {
+    console.error('[gradebook-categories-save]', err);
+    res.redirect(`/course/${courseId}/gradebook/setup/rules?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
 // ============================================
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
 
