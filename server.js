@@ -170,7 +170,9 @@ async function teacherOwnsCourse(userId, courseId) {
 }
 
 function isTeacherRole(u) {
-  return u && (u.role === 'teacher' || u.role === 'advisor');
+  if (!u || !u.role) return false;
+  const r = String(u.role).toLowerCase().trim();
+  return r === 'teacher' || r === 'advisor' || r === 'admin';
 }
 
 function formOn(v, dflt = true) {
@@ -1776,57 +1778,88 @@ function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
   return R * c; // Distance in meters
 }
 
-// 1. GET Attendance View
+// 1. GET Attendance View (Handles BOTH Teacher and Student)
 app.get('/course/:id/attendance', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
-  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+  const isTeacher = isTeacherRole(req.session.user);
 
-  const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+  if (!isTeacher) {
+    return res.status(403).send("Access Denied: You are logged in as a student, not a teacher.");
+  }
 
   try {
+    const ownsCourse = await teacherOwnsCourse(req.session.user.id, courseId);
+    if (!ownsCourse) {
+      return res.status(403).send(`Access Denied: Your User ID (${req.session.user.id}) is not registered as the teacher for Course ${courseId} in the database.`);
+    }
+
     const courseRes = await pool.query(`SELECT id, code, title, credits FROM courses WHERE id = $1`, [courseId]);
     if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
     const course = courseRes.rows[0];
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
 
-    // Fetch students, sorted chronologically by admission_number
     const studentsRes = await pool.query(`
       SELECT u.id, u.full_name, u.email, COALESCE(sp.admission_number, u.id::text) as admission_number 
-      FROM enrollments e 
-      JOIN users u ON u.id = e.user_id 
-      LEFT JOIN student_profiles sp ON sp.user_id = u.id 
-      WHERE e.course_id = $1 
-      ORDER BY admission_number ASC
+      FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id 
+      WHERE e.course_id = $1 ORDER BY admission_number ASC
     `, [courseId]);
 
-    // Fetch today's sessions
     const sessionsRes = await pool.query(`
-      SELECT * FROM lms_attendance_sessions 
-      WHERE course_id = $1 AND date = $2 
-      ORDER BY hour_number ASC
+      SELECT * FROM lms_attendance_sessions WHERE course_id = $1 AND date = $2 ORDER BY hour_number ASC
     `, [courseId, dateStr]);
 
-    // Fetch records for these sessions
     const sessionIds = sessionsRes.rows.map(s => s.id);
     let records = [];
     if (sessionIds.length > 0) {
-      const recRes = await pool.query(`
-        SELECT * FROM lms_attendance_records WHERE session_id = ANY($1)
-      `, [sessionIds]);
+      const recRes = await pool.query(`SELECT * FROM lms_attendance_records WHERE session_id = ANY($1)`, [sessionIds]);
       records = recRes.rows;
     }
 
     res.render('lms-attendance', {
-      user: req.session.user, course, students: studentsRes.rows, 
-      sessions: sessionsRes.rows, records, selectedDate: dateStr
+      user: req.session.user, course, students: studentsRes.rows, sessions: sessionsRes.rows, records, selectedDate: dateStr
     });
   } catch (err) {
     res.status(500).send("Attendance Error: " + err.message);
   }
 });
 
-// 2. POST Start Sessions (Creates 3 hours by default for the day)
+// 2. GET Summary View (Teacher only - 70% Rule)
+app.get('/course/:id/attendance/summary', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const courseRes = await pool.query(`SELECT id, code, title FROM courses WHERE id = $1`, [courseId]);
+    const totalSessionsRes = await pool.query(`SELECT COUNT(*) as total FROM lms_attendance_sessions WHERE course_id = $1`, [courseId]);
+    const totalSessions = parseInt(totalSessionsRes.rows[0].total);
+
+    const studentsRes = await pool.query(`
+      SELECT u.id, u.full_name, COALESCE(sp.admission_number, u.id::text) as admission_number,
+      (SELECT COUNT(*) FROM lms_attendance_records r JOIN lms_attendance_sessions s ON s.id = r.session_id 
+       WHERE s.course_id = $1 AND r.student_id = u.id AND r.status = 'present') as attended
+      FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id 
+      WHERE e.course_id = $1 ORDER BY admission_number ASC
+    `, [courseId]);
+
+    const eligible = [];
+    const ineligible = [];
+
+    studentsRes.rows.forEach(st => {
+      const pct = totalSessions > 0 ? Math.round((parseInt(st.attended) / totalSessions) * 100) : 0;
+      st.percentage = pct;
+      if (pct >= 70) eligible.push(st);
+      else ineligible.push(st);
+    });
+
+    res.render('lms-attendance-summary', { user: req.session.user, course: courseRes.rows[0], totalSessions, eligible, ineligible });
+  } catch (err) {
+    res.status(500).send("Summary Error: " + err.message);
+  }
+});
+
+// 3. POST Start Sessions
 app.post('/course/:id/attendance/start', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const courseId = req.params.id;
@@ -1835,11 +1868,7 @@ app.post('/course/:id/attendance/start', async (req, res) => {
 
   try {
     for (let i = 1; i <= numHours; i++) {
-      await pool.query(`
-        INSERT INTO lms_attendance_sessions (course_id, date, hour_number)
-        VALUES ($1, $2, $3)
-        ON CONFLICT DO NOTHING
-      `, [courseId, date, i]);
+      await pool.query(`INSERT INTO lms_attendance_sessions (course_id, date, hour_number) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, [courseId, date, i]);
     }
     res.redirect(`/course/${courseId}/attendance?date=${date}`);
   } catch (err) {
@@ -1847,32 +1876,24 @@ app.post('/course/:id/attendance/start', async (req, res) => {
   }
 });
 
-// 3. POST Generate QR Token (100 seconds expiry + Geofence)
+// 4. POST Generate QR Token
 app.post('/course/:id/attendance/qr/:session_id', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).json({ error: "Access Denied" });
   const { session_id } = req.params;
   const { lat, lng } = req.body;
 
   try {
-    // Generate a secure random token
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    
     await pool.query(`
-      UPDATE lms_attendance_sessions SET 
-        qr_token = $1, 
-        token_expires_at = NOW() + INTERVAL '100 seconds',
-        teacher_lat = $2,
-        teacher_lng = $3
-      WHERE id = $4
+      UPDATE lms_attendance_sessions SET qr_token = $1, token_expires_at = NOW() + INTERVAL '100 seconds', teacher_lat = $2, teacher_lng = $3 WHERE id = $4
     `, [token, lat, lng, session_id]);
-
     res.json({ success: true, token });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 4. POST Manual Mark (Radio Buttons)
+// 5. POST Manual Mark (Radio Buttons)
 app.post('/course/:id/attendance/manual', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { session_id, student_id, status } = req.body;
@@ -1881,8 +1902,7 @@ app.post('/course/:id/attendance/manual', async (req, res) => {
     await pool.query(`
       INSERT INTO lms_attendance_records (session_id, student_id, status, method, marked_by)
       VALUES ($1, $2, $3, 'manual', $4)
-      ON CONFLICT (session_id, student_id)
-      DO UPDATE SET status = EXCLUDED.status, method = 'manual'
+      ON CONFLICT (session_id, student_id) DO UPDATE SET status = EXCLUDED.status, method = 'manual'
     `, [session_id, student_id, status, req.session.user.id]);
     res.json({ success: true });
   } catch (err) {
@@ -1890,61 +1910,22 @@ app.post('/course/:id/attendance/manual', async (req, res) => {
   }
 });
 
-// 5. POST Scan QR (Student Flow - Geofenced)
-app.post('/course/:id/attendance/scan', async (req, res) => {
-  if (!req.session.user) return res.status(401).json({ error: "Not logged in" });
-  const { token, lat, lng } = req.body;
-
-  try {
-    const sessRes = await pool.query(`
-      SELECT * FROM lms_attendance_sessions 
-      WHERE qr_token = $1 AND token_expires_at > NOW()
-    `, [token]);
-
-    if (sessRes.rows.length === 0) return res.json({ success: false, error: "QR Code expired or invalid." });
-    const session = sessRes.rows[0];
-
-    // Check Distance (50 meters restriction)
-    const distance = getDistanceFromLatLonInMeters(lat, lng, session.teacher_lat, session.teacher_lng);
-    if (distance > 50) {
-      return res.json({ success: false, error: `Too far from class! You are ${Math.round(distance)}m away. Must be within 50m.` });
-    }
-
-    // Mark Present
-    await pool.query(`
-      INSERT INTO lms_attendance_records (session_id, student_id, status, method, scanned_lat, scanned_lng)
-      VALUES ($1, $2, 'present', 'qr', $3, $4)
-      ON CONFLICT (session_id, student_id) DO NOTHING
-    `, [session.id, req.session.user.id, lat, lng]);
-
-    res.json({ success: true, message: "Attendance marked successfully!" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 1. Student Scan Page (When they scan the QR, they land here)
+// 6. GET Student Scan Page
 app.get('/course/:id/attendance/scan', async (req, res) => {
-  if (!req.session.user) return res.redirect('/login');
+  if (!req.session.user) return res.redirect(`/login?redirect=/course/${req.params.id}/attendance/scan?token=${req.query.token}`);
   const courseId = req.params.id;
   const { token } = req.query;
   if (!token) return res.status(400).send("Invalid token.");
 
   try {
     const courseRes = await pool.query(`SELECT title, code FROM courses WHERE id = $1`, [courseId]);
-    if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
-    
-    res.render('lms-attendance-scan', { 
-      user: req.session.user, 
-      course: courseRes.rows[0], 
-      token 
-    });
+    res.render('lms-attendance-scan', { user: req.session.user, course: courseRes.rows[0], token });
   } catch (err) {
     res.status(500).send("Error: " + err.message);
   }
 });
 
-// 2. Student Scan Submission (Verifies location and marks present)
+// 7. POST Confirm Scan (From the Confirm Button)
 app.post('/course/:id/attendance/scan', async (req, res) => {
   if (!req.session.user) return res.json({ success: false, error: "Not logged in" });
   const { token, lat, lng } = req.body;
@@ -1960,22 +1941,13 @@ app.post('/course/:id/attendance/scan', async (req, res) => {
     if (sessRes.rows.length === 0) return res.json({ success: false, error: "QR Code expired or invalid." });
     const session = sessRes.rows[0];
 
-    // Check if student is enrolled
-    const enroll = await pool.query(`SELECT 1 FROM enrollments WHERE course_id = $1 AND user_id = $2`, [courseId, req.session.user.id]);
-    if (enroll.rows.length === 0) return res.json({ success: false, error: "You are not enrolled in this course." });
-
-    // Check Distance (50 meters restriction)
     const distance = getDistanceFromLatLonInMeters(lat, lng, session.teacher_lat, session.teacher_lng);
-    if (distance > 50) {
-      return res.json({ success: false, error: `Rejected: You are ${Math.round(distance)}m away from the classroom. Must be within 50m.` });
-    }
+    if (distance > 50) return res.json({ success: false, error: `Rejected: You are ${Math.round(distance)}m away. Must be within 50m.` });
 
-    // Mark Present
     await pool.query(`
       INSERT INTO lms_attendance_records (session_id, student_id, status, method, scanned_lat, scanned_lng)
       VALUES ($1, $2, 'present', 'qr', $3, $4)
-      ON CONFLICT (session_id, student_id) 
-      DO UPDATE SET status = 'present', method = 'qr', scanned_lat = EXCLUDED.scanned_lat, scanned_lng = EXCLUDED.scanned_lng
+      ON CONFLICT (session_id, student_id) DO UPDATE SET status = 'present', method = 'qr'
     `, [session.id, req.session.user.id, lat, lng]);
 
     res.json({ success: true, message: `Attendance confirmed for ${session.course_title}` });
@@ -1984,22 +1956,17 @@ app.post('/course/:id/attendance/scan', async (req, res) => {
   }
 });
 
-// 3. Teacher Polling Route (To auto-update the radio buttons without refreshing)
+// 8. GET Status (Polling for Teacher)
 app.get('/course/:id/attendance/status', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).json({ error: "Access Denied" });
   const { date } = req.query;
-  
   try {
     const sessions = await pool.query(`SELECT id FROM lms_attendance_sessions WHERE course_id = $1 AND date = $2`, [req.params.id, date]);
     if (sessions.rows.length === 0) return res.json({ records: [] });
-    
     const sessionIds = sessions.rows.map(s => s.id);
     const records = await pool.query(`SELECT session_id, student_id, status FROM lms_attendance_records WHERE session_id = ANY($1)`, [sessionIds]);
-    
     res.json({ records: records.rows });
-  } catch (err) {
-    res.json({ records: [] });
-  }
+  } catch (err) { res.json({ records: [] }); }
 });
 
 // ============================================
