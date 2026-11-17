@@ -35,27 +35,27 @@ const pool = new Pool({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());   // ← NEW: for AJAX anti-cheat /flag endpoint
 
 // ============================================
 // --- SESSION WITH SAFE POSTGRES STORE ---
 // ============================================
 let sessionStore;
-
 try {
   const pgSession = require('connect-pg-simple')(session);
   sessionStore = new pgSession({
     pool: pool,
     tableName: 'user_sessions',
-    createTableIfMissing: false   // We created it manually in Step 1
+    createTableIfMissing: false
   });
   console.log('[session] PostgreSQL session store loaded.');
 } catch (err) {
   console.error('[session] FATAL: Failed to initialize PostgreSQL session store. Falling back to memory store.', err);
-  sessionStore = undefined; // express-session will use MemoryStore as fallback
+  sessionStore = undefined;
 }
 
 app.use(session({
-  store: sessionStore,            // undefined → MemoryStore (safe fallback)
+  store: sessionStore,
   secret: 'luxmind-secret',
   resave: false,
   saveUninitialized: false,
@@ -63,7 +63,7 @@ app.use(session({
     secure: true,
     sameSite: 'none',
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
 
@@ -151,6 +151,187 @@ app.get('/whoami', (req, res) => {
 });
 
 // ============================================
+// --- SHARED HELPERS ---
+// ============================================
+async function teacherOwnsCourse(userId, courseId) {
+  const r = await pool.query(
+    `SELECT 1 FROM course_sections WHERE course_id = $1 AND teacher_id = $2 LIMIT 1`,
+    [courseId, userId]
+  );
+  return r.rows.length > 0;
+}
+
+function isTeacherRole(u) {
+  return u && (u.role === 'teacher' || u.role === 'advisor');
+}
+
+function formOn(v, dflt = true) {
+  if (v === undefined || v === null) return dflt;
+  if (Array.isArray(v)) v = v[v.length - 1];
+  return v === 'on' || v === 'true' || v === '1' || v === true;
+}
+
+function formInt(v, dflt) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : dflt;
+}
+
+function formOptInt(v) {
+  if (v === '' || v === undefined || v === null) return null;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+// ---------- NEW QUIZ HELPERS ----------
+
+// Deterministic seeded shuffle — same order every call for same seed, different per attempt
+function shuffleSeeded(arr, seed) {
+  const h = (s) => {
+    let x = 0;
+    for (let i = 0; i < s.length; i++) x = ((x << 5) - x + s.charCodeAt(i)) | 0;
+    return x;
+  };
+  let state = Math.abs(h(String(seed))) || 1;
+  const rnd = () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  };
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Auto-grade one answer. Returns { auto_score, is_correct } (null = needs manual)
+function autoGradeAnswer(question, choicesByQuestion, studentAnswer) {
+  const marks = Number(question.marks) || 0;
+  if (!question.auto_grade) return { auto_score: null, is_correct: null };
+
+  if (question.type === 'MCQ' || question.type === 'TF') {
+    const correctIds = new Set((choicesByQuestion[question.id] || [])
+      .filter(c => c.is_correct).map(c => c.id));
+    let selected = [];
+    if (question.type === 'TF') {
+      // stored as {value: true/false}, map to choice with matching text
+      const val = studentAnswer?.value;
+      if (val === undefined || val === null) return { auto_score: 0, is_correct: false };
+      const matching = (choicesByQuestion[question.id] || [])
+        .find(c => c.text.toLowerCase() === (val ? 'true' : 'false'));
+      if (matching) selected = [matching.id];
+    } else {
+      selected = Array.isArray(studentAnswer?.choice_ids) ? studentAnswer.choice_ids : [];
+    }
+    if (selected.length === 0) return { auto_score: 0, is_correct: false };
+    let match = selected.length === correctIds.size;
+    if (match) for (const id of selected) if (!correctIds.has(id)) { match = false; break; }
+    return { auto_score: match ? marks : 0, is_correct: match };
+  }
+
+  if (question.type === 'FILL_BLANK') {
+    const sv = String(studentAnswer?.value ?? '').trim();
+    if (!sv) return { auto_score: 0, is_correct: false };
+    const ca = question.correct_answer || {};
+    const cv = String(ca.value ?? '').trim();
+    const syns = Array.isArray(ca.synonyms) ? ca.synonyms : [];
+    const tol = ca.tolerance;
+    const norm = (s) => question.case_insensitive ? s.toLowerCase() : s;
+    if (tol != null) {
+      const a = parseFloat(sv), b = parseFloat(cv);
+      if (Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= Number(tol))
+        return { auto_score: marks, is_correct: true };
+    }
+    if (norm(sv) === norm(cv)) return { auto_score: marks, is_correct: true };
+    for (const s of syns) if (norm(sv) === norm(String(s))) return { auto_score: marks, is_correct: true };
+    return { auto_score: 0, is_correct: false };
+  }
+
+  if (question.type === 'SHORT_ANSWER') {
+    const sv = String(studentAnswer?.value ?? '').trim();
+    const cv = String(question.correct_answer?.model_answer ?? '').trim();
+    if (!cv) return { auto_score: null, is_correct: null };
+    const norm = (s) => question.case_insensitive ? s.toLowerCase() : s;
+    const ok = norm(sv) === norm(cv);
+    return { auto_score: ok ? marks : 0, is_correct: ok };
+  }
+
+  // ESSAY → always manual
+  return { auto_score: null, is_correct: null };
+}
+
+// Finalize an attempt: grade everything, save, set status
+async function autoSubmitAttempt(attemptId, quizId) {
+  const aRes = await pool.query(`SELECT * FROM lms_quiz_attempts WHERE id = $1`, [attemptId]);
+  if (aRes.rows.length === 0) return;
+  const attempt = aRes.rows[0];
+  if (attempt.status !== 'in_progress') return;
+
+  const qRes = await pool.query(
+    `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position`, [quizId]);
+  const questions = qRes.rows;
+
+  const ansRes = await pool.query(
+    `SELECT question_id, student_answer FROM lms_quiz_answers WHERE attempt_id = $1`, [attemptId]);
+  const answersMap = {};
+  for (const a of ansRes.rows) answersMap[a.question_id] = a.student_answer;
+
+  let choicesByQ = {};
+  if (questions.length > 0) {
+    const cRes = await pool.query(
+      `SELECT id, question_id, text, is_correct FROM lms_quiz_choices WHERE question_id = ANY($1)`,
+      [questions.map(q => q.id)]);
+    for (const c of cRes.rows) {
+      if (!choicesByQ[c.question_id]) choicesByQ[c.question_id] = [];
+      choicesByQ[c.question_id].push(c);
+    }
+  }
+
+  let totalAuto = 0, hasManual = false;
+  for (const q of questions) {
+    const sa = answersMap[q.id] || null;
+    const { auto_score, is_correct } = autoGradeAnswer(q, choicesByQ, sa);
+    if (auto_score == null) hasManual = true;
+    else totalAuto += Number(auto_score);
+
+    await pool.query(`
+      INSERT INTO lms_quiz_answers (attempt_id, question_id, student_answer, auto_score, is_correct, answered_at)
+      VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT answered_at FROM lms_quiz_answers WHERE attempt_id=$1 AND question_id=$2), NOW()))
+      ON CONFLICT (attempt_id, question_id)
+      DO UPDATE SET auto_score = EXCLUDED.auto_score, is_correct = EXCLUDED.is_correct
+    `, [attemptId, q.id, sa, auto_score, is_correct]);
+  }
+
+  const quizRes = await pool.query(`SELECT total_marks FROM lms_quizzes WHERE id = $1`, [quizId]);
+  const totalMarks = Number(quizRes.rows[0]?.total_marks) || 0;
+  const pct = totalMarks > 0 ? (totalAuto / totalMarks) * 100 : 0;
+  const is_graded = !hasManual;
+  const newStatus = is_graded ? 'graded' : 'submitted';
+
+  await pool.query(`
+    UPDATE lms_quiz_attempts SET
+      status = $1,
+      submitted_at = COALESCE(submitted_at, NOW()),
+      total_score = $2,
+      percentage = $3,
+      is_graded = $4,
+      graded_at = CASE WHEN $4 THEN NOW() ELSE graded_at END
+    WHERE id = $5
+  `, [newStatus, totalAuto, pct, is_graded, attemptId]);
+}
+
+// Move status='graded' → 'released' once release gate is open
+async function maybeRelease(attempt, quiz) {
+  if (attempt.status === 'released') return true;
+  if (attempt.status !== 'graded') return false;
+  if (quiz.grade_release_at && new Date() < new Date(quiz.grade_release_at)) return false;
+  await pool.query(
+    `UPDATE lms_quiz_attempts SET status='released', released_at=NOW() WHERE id=$1`,
+    [attempt.id]);
+  return true;
+}
+
+// ============================================
 // --- ROUTES ---
 // ============================================
 app.get('/set-language/:lang', (req, res) => {
@@ -181,7 +362,7 @@ app.post('/login', async (req, res) => {
 
 app.get('/dashboard', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const isTeacher = req.session.user.role === 'teacher' || req.session.user.role === 'advisor';
+  const isTeacher = isTeacherRole(req.session.user);
 
   try {
     if (isTeacher) {
@@ -223,11 +404,14 @@ app.get('/dashboard', async (req, res) => {
   } catch (err) { res.status(500).send("Dashboard Error: " + err.message); }
 });
 
+// ============================================
+// COURSE (single page, view-switched)
+// ============================================
 app.get('/course/:id', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
   const view = req.query.view || 'dashboard';
-  const isTeacher = req.session.user.role === 'teacher' || req.session.user.role === 'advisor';
+  const isTeacher = isTeacherRole(req.session.user);
 
   try {
     let courseCheck;
@@ -240,6 +424,7 @@ app.get('/course/:id', async (req, res) => {
     const course = courseCheck.rows[0];
 
     let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
+    let activeQuiz = null, activeQuizQuestions = [], activeQuizChoices = [];
 
     if (view === 'dashboard' || view === 'assignments' || view === 'grades') {
       if (isTeacher) {
@@ -260,9 +445,73 @@ app.get('/course/:id', async (req, res) => {
       }
     }
 
+    // ============================================
+    // QUIZZES — list + (teacher) builder loading + (student) attempt states
+    // ============================================
     if (view === 'quizzes') {
-      const r = await pool.query(`SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY due_date ASC`, [courseId]); quizzes = r.rows;
+      let qSql = `
+        SELECT q.*,
+          (SELECT COUNT(*) FROM lms_quiz_attempts a
+             WHERE a.quiz_id = q.id AND a.status IN ('submitted','graded','released')) AS attempt_count,
+          (SELECT COUNT(*) FROM lms_quiz_questions qq WHERE qq.quiz_id = q.id) AS question_count
+        FROM lms_quizzes q
+        WHERE q.course_id = $1
+      `;
+      if (!isTeacher) qSql += ` AND q.is_published = TRUE`;
+      qSql += ` ORDER BY q.due_date ASC NULLS LAST, q.created_at DESC`;
+
+      const r = await pool.query(qSql, [courseId]);
+      quizzes = r.rows;
+
+      // Teacher builder mode
+      if (isTeacher && req.query.quiz_id) {
+        const quizRes = await pool.query(
+          `SELECT * FROM lms_quizzes WHERE id = $1 AND course_id = $2`,
+          [req.query.quiz_id, courseId]
+        );
+        if (quizRes.rows.length > 0) {
+          activeQuiz = quizRes.rows[0];
+          const qRes = await pool.query(
+            `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position ASC`,
+            [req.query.quiz_id]
+          );
+          activeQuizQuestions = qRes.rows;
+          const cRes = await pool.query(
+            `SELECT c.* FROM lms_quiz_choices c
+             JOIN lms_quiz_questions q ON q.id = c.question_id
+             WHERE q.quiz_id = $1
+             ORDER BY c.question_id, c.position ASC`,
+            [req.query.quiz_id]
+          );
+          activeQuizChoices = cRes.rows;
+        }
+      }
+
+      // Student: attach their attempts + computed state
+      if (!isTeacher && quizzes.length > 0) {
+        const atRes = await pool.query(
+          `SELECT * FROM lms_quiz_attempts
+           WHERE student_id = $1 AND quiz_id = ANY($2)
+           ORDER BY started_at DESC`,
+          [req.session.user.id, quizzes.map(q => q.id)]
+        );
+        const byQuiz = {};
+        for (const a of atRes.rows) {
+          if (!byQuiz[a.quiz_id]) byQuiz[a.quiz_id] = [];
+          byQuiz[a.quiz_id].push(a);
+        }
+        const now = new Date();
+        for (const q of quizzes) {
+          q.attempts = byQuiz[q.id] || [];
+          q.latest_attempt = q.attempts[0] || null;
+          q.is_open = (!q.open_at || new Date(q.open_at) <= now) &&
+                      (!q.close_at || new Date(q.close_at) > now);
+          q.has_in_progress = q.attempts.some(a => a.status === 'in_progress');
+          q.can_start = q.is_open && q.attempts.length < q.max_attempts && !q.has_in_progress;
+        }
+      }
     }
+
     if (view === 'announcements') {
       if (!isTeacher) { await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]); }
       const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]); announcements = r.rows;
@@ -333,7 +582,9 @@ app.get('/course/:id', async (req, res) => {
       assignments, quizzes, grades, announcements, materials, students,
       unreadCount: 0,
       upcomingAssignments, latestAnnouncements, studentCount,
-      selectedAssignmentId: req.query.assignment_id || null
+      selectedAssignmentId: req.query.assignment_id || null,
+      activeQuiz, activeQuizQuestions, activeQuizChoices,
+      selectedQuizId: req.query.quiz_id || null
     });
   } catch (err) { res.status(500).send("Course Error: " + err.message); }
 });
@@ -345,7 +596,7 @@ app.post('/course/:id/announcements', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const courseId = req.params.id;
   const { title, message } = req.body;
-  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') return res.status(403).send("Access Denied.");
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   if (!title || !message) return res.redirect(`/course/${courseId}?view=announcements`);
   try {
     await pool.query(`INSERT INTO lms_announcements (course_id, title, message, created_by) VALUES ($1, $2, $3, $4)`, [courseId, title, message, req.session.user.id]);
@@ -362,7 +613,7 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
   const { title, week_number } = req.body;
   const file = req.file;
 
-  if ((req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') || !file || !title) {
+  if (!isTeacherRole(req.session.user) || !file || !title) {
     return res.redirect(`/course/${courseId}?view=materials`);
   }
 
@@ -387,7 +638,7 @@ app.post('/course/:id/materials', upload.single('material'), async (req, res) =>
 app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const { id, material_id } = req.params;
-  if (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor') return res.status(403).send("Access Denied.");
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
 
   try {
     await pool.query(`UPDATE lms_materials SET is_published = NOT is_published WHERE id = $1 AND course_id = $2`, [material_id, id]);
@@ -396,23 +647,10 @@ app.post('/course/:id/materials/:material_id/toggle', async (req, res) => {
 });
 
 // ============================================
-// ASSIGNMENTS — CREATE (single route, with multer + debug logs)
+// ASSIGNMENTS — CREATE
 // ============================================
 app.post('/course/:id/assignments', upload.single('attachment'), async (req, res) => {
-  console.log('[create-assignment] HIT', {
-    sessionExists: !!req.session,
-    hasUser: !!req.session.user,
-    role: req.session.user ? req.session.user.role : null,
-    userId: req.session.user ? req.session.user.id : null
-  });
-  console.log('[create-assignment] body:', req.body);
-  console.log('[create-assignment] file:', req.file ? req.file.originalname : 'none');
-
-  if (!req.session.user ||
-      (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
-    console.log('[create-assignment] AUTH FAILED — session or role wrong');
-    return res.status(403).send("Access Denied.");
-  }
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
 
   const courseId = req.params.id;
   const { title, instructions, due_date, max_points, is_published } = req.body;
@@ -429,10 +667,7 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
       const { error: upErr } = await supabase.storage.from('course-materials')
         .upload(storagePath, file.buffer, { contentType: file.mimetype });
 
-      if (upErr) {
-        console.error('[create-assignment] storage error:', upErr);
-        throw new Error('Storage upload failed: ' + upErr.message);
-      }
+      if (upErr) throw new Error('Storage upload failed: ' + upErr.message);
 
       const { data: { publicUrl } } = supabase.storage.from('course-materials').getPublicUrl(storagePath);
       attachmentUrl = publicUrl;
@@ -460,7 +695,7 @@ app.post('/course/:id/assignments', upload.single('attachment'), async (req, res
 // ASSIGNMENTS — TOGGLE
 // ============================================
 app.post('/course/:id/assignments/:assignment_id/toggle', async (req, res) => {
-  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) return res.status(403).send("Access Denied.");
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
   const { id, assignment_id } = req.params;
   try {
     await pool.query(`UPDATE lms_assignments SET is_published = NOT is_published WHERE id = $1 AND course_id = $2`, [assignment_id, id]);
@@ -498,10 +733,10 @@ app.post('/course/:id/assignments/:assignment_id/submit', upload.single('submiss
 });
 
 // ============================================
-// SAVE GRADE
+// SAVE GRADE (assignments)
 // ============================================
 app.post('/course/:id/grades/:submission_id', async (req, res) => {
-  if (!req.session.user || (req.session.user.role !== 'teacher' && req.session.user.role !== 'advisor')) {
+  if (!isTeacherRole(req.session.user)) {
     return res.status(403).send("Access Denied.");
   }
   const { id, submission_id } = req.params;
@@ -525,6 +760,773 @@ app.post('/course/:id/grades/:submission_id', async (req, res) => {
   } catch (err) { res.status(500).send("Save Grade Error: " + err.message); }
 });
 
+// ============================================
+// QUIZ BUILDER (Teacher) — unchanged from before
+// ============================================
+app.post('/course/:id/quizzes', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  const b = req.body;
+  if (!b.title || !b.title.trim()) return res.status(400).send("Title is required.");
+
+  try {
+    const r = await pool.query(`
+      INSERT INTO lms_quizzes (
+        course_id, title, description, instructions,
+        open_at, close_at, duration_minutes, duration_fixed, late_start_behavior,
+        due_date, pass_mark, grade_release_at, show_correct_answers, show_feedback,
+        shuffle_questions, shuffle_choices, max_attempts,
+        anti_cheat_enabled, auto_submit_after_warnings, is_published, created_by
+      ) VALUES (
+        $1,  $2,  $3, $4,
+        $5,  $6,  $7, $8, $9,
+        $6, $10, $11, $12, $13,
+        $14, $15, $16,
+        $17, $18, $19, $20
+      ) RETURNING id
+    `, [
+      courseId, b.title.trim(), b.description || null, b.instructions || null,
+      b.open_at || null, b.close_at || null,
+      formInt(b.duration_minutes, 60), formOn(b.duration_fixed, true),
+      ['full','truncated','blocked'].includes(b.late_start_behavior) ? b.late_start_behavior : 'full',
+      formOptInt(b.pass_mark), b.grade_release_at || null,
+      formOn(b.show_correct_answers, true), formOn(b.show_feedback, true),
+      formOn(b.shuffle_questions, true), formOn(b.shuffle_choices, true),
+      formInt(b.max_attempts, 1),
+      formOn(b.anti_cheat_enabled, true), formInt(b.auto_submit_after_warnings, 3),
+      formOn(b.is_published, false), req.session.user.id
+    ]);
+
+    res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${r.rows[0].id}`);
+  } catch (err) {
+    console.error('[create-quiz] FATAL:', err);
+    res.status(500).send("Create Quiz Error: " + err.message);
+  }
+});
+
+app.post('/course/:id/quizzes/:quiz_id', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  const b = req.body;
+  try {
+    await pool.query(`
+      UPDATE lms_quizzes SET
+        title = COALESCE($1, title), description = $2, instructions = $3,
+        open_at = $4, close_at = $5, due_date = $5,
+        duration_minutes = $6, duration_fixed = $7, late_start_behavior = $8,
+        pass_mark = $9, grade_release_at = $10,
+        show_correct_answers = $11, show_feedback = $12,
+        shuffle_questions = $13, shuffle_choices = $14,
+        max_attempts = $15, anti_cheat_enabled = $16, auto_submit_after_warnings = $17
+      WHERE id = $18 AND course_id = $19
+    `, [
+      b.title ? b.title.trim() : null, b.description || null, b.instructions || null,
+      b.open_at || null, b.close_at || null,
+      formInt(b.duration_minutes, 60), formOn(b.duration_fixed, true),
+      ['full','truncated','blocked'].includes(b.late_start_behavior) ? b.late_start_behavior : 'full',
+      formOptInt(b.pass_mark), b.grade_release_at || null,
+      formOn(b.show_correct_answers, true), formOn(b.show_feedback, true),
+      formOn(b.shuffle_questions, true), formOn(b.shuffle_choices, true),
+      formInt(b.max_attempts, 1), formOn(b.anti_cheat_enabled, true),
+      formInt(b.auto_submit_after_warnings, 3),
+      quiz_id, courseId
+    ]);
+    res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
+  } catch (err) {
+    console.error('[update-quiz]', err);
+    res.status(500).send("Update Quiz Error: " + err.message);
+  }
+});
+
+app.post('/course/:id/quizzes/:quiz_id/publish', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const cur = await pool.query(
+      `SELECT is_published,
+              (SELECT COUNT(*) FROM lms_quiz_questions WHERE quiz_id = $1) AS qc
+       FROM lms_quizzes WHERE id = $1 AND course_id = $2`,
+      [quiz_id, courseId]);
+    if (cur.rows.length === 0) return res.status(404).send("Quiz not found.");
+
+    const willPublish = !cur.rows[0].is_published;
+    if (willPublish && parseInt(cur.rows[0].qc, 10) === 0) {
+      return res.status(400).send("Cannot publish a quiz with 0 questions. Add at least one question first.");
+    }
+
+    await pool.query(`UPDATE lms_quizzes SET is_published = $1 WHERE id = $2`, [willPublish, quiz_id]);
+    res.redirect(`/course/${courseId}?view=quizzes`);
+  } catch (err) {
+    console.error('[publish-quiz]', err);
+    res.status(500).send("Publish Error: " + err.message);
+  }
+});
+
+app.post('/course/:id/quizzes/:quiz_id/delete', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+  try {
+    await pool.query(`DELETE FROM lms_quizzes WHERE id = $1 AND course_id = $2`, [quiz_id, courseId]);
+    res.redirect(`/course/${courseId}?view=quizzes`);
+  } catch (err) {
+    console.error('[delete-quiz]', err);
+    res.status(500).send("Delete Error: " + err.message);
+  }
+});
+
+app.post('/course/:id/quizzes/:quiz_id/questions', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  const b = req.body;
+  const type = String(b.type || '').toUpperCase();
+  const VALID = ['MCQ','TF','FILL_BLANK','SHORT_ANSWER','ESSAY'];
+  if (!VALID.includes(type)) return res.status(400).send("Invalid question type.");
+  if (!b.prompt || !b.prompt.trim()) return res.status(400).send("Prompt is required.");
+
+  const marks = Math.max(0, parseInt(b.marks, 10) || 1);
+  const explanation = b.explanation || null;
+
+  let mcqChoices = null, mcqCorrectPositions = null;
+  if (type === 'MCQ') {
+    const texts = [].concat(b.choice_texts || []);
+    const correctSet = new Set([].concat(b.choice_correct || []).map(x => parseInt(x, 10)));
+    const cleaned = texts.map((t, i) => ({ t: String(t || '').trim(), i })).filter(r => r.t.length > 0);
+    if (cleaned.length < 2) return res.status(400).send("MCQ needs at least 2 non-empty choices.");
+    mcqChoices = cleaned.map(r => ({ text: r.t, isCorrect: correctSet.has(r.i) }));
+    mcqCorrectPositions = mcqChoices.map((c, i) => c.isCorrect ? i : -1).filter(x => x >= 0);
+    if (mcqCorrectPositions.length === 0) return res.status(400).send("Mark at least one MCQ choice as correct.");
+  }
+
+  let tfValue = null;
+  if (type === 'TF') tfValue = String(b.tf_value || '').toLowerCase() === 'true';
+
+  let fillValue = null, fillSynonyms = null, fillTolerance = null, caseInsensitive = true;
+  if (type === 'FILL_BLANK') {
+    if (!b.fill_value || !b.fill_value.trim()) return res.status(400).send("Fill-in-blank needs a correct value.");
+    fillValue = b.fill_value.trim();
+    fillSynonyms = (b.synonyms || '').split(',').map(s => s.trim()).filter(Boolean);
+    fillTolerance = b.tolerance ? Number(b.tolerance) : null;
+    caseInsensitive = formOn(b.case_insensitive, true);
+  }
+
+  let modelAnswer = null;
+  if (type === 'SHORT_ANSWER' || type === 'ESSAY') modelAnswer = b.model_answer ? b.model_answer.trim() : null;
+
+  const autoGradeDefault = !['SHORT_ANSWER','ESSAY'].includes(type);
+  const autoGrade = b.auto_grade === undefined ? autoGradeDefault : formOn(b.auto_grade, autoGradeDefault);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const posRes = await client.query(
+      `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM lms_quiz_questions WHERE quiz_id = $1`,
+      [quiz_id]);
+    const nextPos = parseInt(posRes.rows[0].next_pos, 10);
+
+    let correctAnswer = null;
+    if (type === 'FILL_BLANK') correctAnswer = { value: fillValue, synonyms: fillSynonyms || [], tolerance: fillTolerance };
+    else if (type === 'SHORT_ANSWER' || type === 'ESSAY') correctAnswer = modelAnswer ? { model_answer: modelAnswer } : null;
+
+    const qInsert = await client.query(`
+      INSERT INTO lms_quiz_questions
+        (quiz_id, position, type, prompt, explanation, marks, correct_answer,
+         auto_grade, case_insensitive, synonyms, tolerance)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id
+    `, [quiz_id, nextPos, type, b.prompt.trim(), explanation, marks,
+        correctAnswer, autoGrade, caseInsensitive, fillSynonyms, fillTolerance]);
+    const newQuestionId = qInsert.rows[0].id;
+
+    if (type === 'MCQ') {
+      for (let i = 0; i < mcqChoices.length; i++) {
+        await client.query(
+          `INSERT INTO lms_quiz_choices (question_id, position, text, is_correct) VALUES ($1, $2, $3, $4)`,
+          [newQuestionId, i, mcqChoices[i].text, mcqChoices[i].isCorrect]);
+      }
+      await client.query(
+        `UPDATE lms_quiz_questions SET correct_answer = $1 WHERE id = $2`,
+        [{ positions: mcqCorrectPositions }, newQuestionId]);
+    }
+
+    if (type === 'TF') {
+      await client.query(
+        `INSERT INTO lms_quiz_choices (question_id, position, text, is_correct) VALUES
+          ($1, 0, 'True',  $2),
+          ($1, 1, 'False', $3)`,
+        [newQuestionId, tfValue, !tfValue]);
+      await client.query(
+        `UPDATE lms_quiz_questions SET correct_answer = $1 WHERE id = $2`,
+        [{ value: tfValue }, newQuestionId]);
+    }
+
+    await client.query('COMMIT');
+    res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[add-question]', err);
+    res.status(400).send("Add Question Error: " + err.message);
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/course/:id/quizzes/:quiz_id/questions/:question_id/delete', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id, question_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+  try {
+    await pool.query(`DELETE FROM lms_quiz_questions WHERE id = $1 AND quiz_id = $2`, [question_id, quiz_id]);
+    res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
+  } catch (err) {
+    console.error('[delete-question]', err);
+    res.status(500).send("Delete Question Error: " + err.message);
+  }
+});
+
+// ============================================
+// ============================================
+// QUIZ — STEP 3: STUDENT FLOW + GRADING
+// ============================================
+// ============================================
+
+// ---------- START QUIZ ----------
+app.post('/course/:id/quizzes/:quiz_id/start', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id: courseId, quiz_id } = req.params;
+
+  try {
+    // Must be enrolled in this course
+    const enroll = await pool.query(
+      `SELECT 1 FROM enrollments WHERE course_id = $1 AND user_id = $2 LIMIT 1`,
+      [courseId, req.session.user.id]);
+    if (enroll.rows.length === 0) return res.status(403).send("Not enrolled.");
+
+    const qRes = await pool.query(
+      `SELECT * FROM lms_quizzes WHERE id = $1 AND course_id = $2 AND is_published = TRUE`,
+      [quiz_id, courseId]);
+    if (qRes.rows.length === 0) return res.status(404).send("Quiz not found or not published.");
+    const quiz = qRes.rows[0];
+
+    // Window checks
+    const now = new Date();
+    if (quiz.open_at && new Date(quiz.open_at) > now) return res.status(400).send("Quiz is not open yet.");
+    if (quiz.close_at && new Date(quiz.close_at) <= now) return res.status(400).send("Quiz is closed.");
+
+    // Existing attempt?
+    const existing = await pool.query(
+      `SELECT * FROM lms_quiz_attempts WHERE quiz_id = $1 AND student_id = $2 ORDER BY started_at DESC`,
+      [quiz_id, req.session.user.id]);
+
+    // If there's already an in-progress attempt, resume it (same timer)
+    const inProg = existing.rows.find(a => a.status === 'in_progress');
+    if (inProg) return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/take`);
+
+    // Attempt count check
+    if (existing.rows.length >= quiz.max_attempts) {
+      return res.status(400).send("Maximum attempts reached.");
+    }
+
+    // Compute ends_at
+    const durationMs = quiz.duration_minutes * 60 * 1000;
+    let endsAt = new Date(now.getTime() + durationMs);
+
+    // Truncation at close_at when duration_fixed
+    if (quiz.duration_fixed && quiz.close_at && endsAt > new Date(quiz.close_at)) {
+      if (quiz.late_start_behavior === 'blocked') {
+        return res.status(400).send("Too late to start — not enough time before close.");
+      } else if (quiz.late_start_behavior === 'truncated') {
+        endsAt = new Date(quiz.close_at);
+      }
+      // 'full' → keep endsAt (grace window past close)
+    }
+
+    const attemptNum = existing.rows.length + 1;
+    const ins = await pool.query(`
+      INSERT INTO lms_quiz_attempts
+        (quiz_id, student_id, attempt_number, status,
+         started_at, ends_at, last_activity_at, current_question_index,
+         ip_address, user_agent)
+      VALUES ($1, $2, $3, 'in_progress', NOW(), $4, NOW(), 0, $5, $6)
+      RETURNING id
+    `, [
+      quiz_id, req.session.user.id, attemptNum, endsAt,
+      req.ip || null, (req.get('user-agent') || '').substring(0, 500)
+    ]);
+
+    console.log(`[quiz-start] attempt ${ins.rows[0].id} for quiz ${quiz_id} student ${req.session.user.id} ends ${endsAt.toISOString()}`);
+    res.redirect(`/course/${courseId}/quizzes/${quiz_id}/take`);
+  } catch (err) {
+    console.error('[quiz-start]', err);
+    res.status(500).send("Start Quiz Error: " + err.message);
+  }
+});
+
+// ---------- TAKE QUIZ (serve current question only) ----------
+app.get('/course/:id/quizzes/:quiz_id/take', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id: courseId, quiz_id } = req.params;
+
+  try {
+    const qRes = await pool.query(
+      `SELECT q.*, c.code AS course_code, c.title AS course_title
+       FROM lms_quizzes q JOIN courses c ON c.id = q.course_id
+       WHERE q.id = $1 AND q.course_id = $2`,
+      [quiz_id, courseId]);
+    if (qRes.rows.length === 0) return res.status(404).send("Quiz not found.");
+    const quiz = qRes.rows[0];
+
+    const aRes = await pool.query(
+      `SELECT * FROM lms_quiz_attempts
+       WHERE quiz_id = $1 AND student_id = $2 AND status = 'in_progress'
+       ORDER BY started_at DESC LIMIT 1`,
+      [quiz_id, req.session.user.id]);
+    if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
+    const attempt = aRes.rows[0];
+
+    // Server-authoritative timer
+    const now = new Date();
+    if (now >= new Date(attempt.ends_at)) {
+      await autoSubmitAttempt(attempt.id, quiz_id);
+      return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
+    }
+
+    // Load questions (shuffled per attempt if enabled)
+    const allQ = await pool.query(
+      `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position`, [quiz_id]);
+    if (allQ.rows.length === 0) return res.status(400).send("Quiz has no questions.");
+
+    let questions = allQ.rows;
+    if (quiz.shuffle_questions) questions = shuffleSeeded(questions, `q_${attempt.id}_${quiz_id}`);
+
+    const idx = attempt.current_question_index;
+    if (idx >= questions.length) {
+      await autoSubmitAttempt(attempt.id, quiz_id);
+      return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
+    }
+    const currentQ = questions[idx];
+
+    // Load choices (never include is_correct in the payload sent to browser)
+    let choices = [];
+    if (currentQ.type === 'MCQ' || currentQ.type === 'TF') {
+      const cRes = await pool.query(
+        `SELECT id, text, position FROM lms_quiz_choices WHERE question_id = $1 ORDER BY position`,
+        [currentQ.id]);
+      choices = cRes.rows;
+      if (quiz.shuffle_choices) choices = shuffleSeeded(choices, `c_${attempt.id}_${currentQ.id}`);
+    }
+
+    // Load existing answer (resume after browser crash)
+    const ansRes = await pool.query(
+      `SELECT * FROM lms_quiz_answers WHERE attempt_id = $1 AND question_id = $2`,
+      [attempt.id, currentQ.id]);
+    const existingAnswer = ansRes.rows[0] || null;
+
+    const remainingSeconds = Math.max(0, Math.floor((new Date(attempt.ends_at) - now) / 1000));
+
+    // Anti-cheat: write last_activity_at
+    await pool.query(`UPDATE lms_quiz_attempts SET last_activity_at = NOW() WHERE id = $1`, [attempt.id]);
+
+    res.render('lms-quiz-take', {
+      user: req.session.user,
+      course: { id: courseId, code: quiz.course_code, title: quiz.course_title },
+      quiz, attempt, currentQ, choices, existingAnswer,
+      questionIndex: idx,
+      questionNumber: idx + 1,
+      totalQuestions: questions.length,
+      remainingSeconds,
+      warningsCount: attempt.tab_switch_warnings,
+      maxWarnings: quiz.auto_submit_after_warnings
+    });
+  } catch (err) {
+    console.error('[quiz-take]', err);
+    res.status(500).send("Take Quiz Error: " + err.message);
+  }
+});
+
+// ---------- SAVE ANSWER + ADVANCE ----------
+app.post('/course/:id/quizzes/:quiz_id/answer', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id: courseId, quiz_id } = req.params;
+
+  try {
+    const aRes = await pool.query(
+      `SELECT * FROM lms_quiz_attempts
+       WHERE quiz_id = $1 AND student_id = $2 AND status = 'in_progress'
+       ORDER BY started_at DESC LIMIT 1`,
+      [quiz_id, req.session.user.id]);
+    if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
+    const attempt = aRes.rows[0];
+
+    // Server-authoritative timer
+    if (new Date() >= new Date(attempt.ends_at)) {
+      await autoSubmitAttempt(attempt.id, quiz_id);
+      return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
+    }
+
+    const qInfo = await pool.query(`SELECT shuffle_questions FROM lms_quizzes WHERE id = $1`, [quiz_id]);
+    const shuffle = qInfo.rows[0]?.shuffle_questions;
+
+    const allQ = await pool.query(
+      `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position`, [quiz_id]);
+    let questions = allQ.rows;
+    if (shuffle) questions = shuffleSeeded(questions, `q_${attempt.id}_${quiz_id}`);
+
+    const idx = attempt.current_question_index;
+    if (idx >= questions.length) {
+      await autoSubmitAttempt(attempt.id, quiz_id);
+      return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
+    }
+    const currentQ = questions[idx];
+
+    // Parse student answer per type
+    let studentAnswer = null;
+    if (currentQ.type === 'MCQ') {
+      const ids = [].concat(req.body.choice_ids || []).map(x => parseInt(x, 10)).filter(Number.isFinite);
+      studentAnswer = { choice_ids: ids };
+    } else if (currentQ.type === 'TF') {
+      const raw = req.body.tf_value;
+      if (raw === undefined || raw === null || raw === '') studentAnswer = { value: null };
+      else studentAnswer = { value: String(raw).toLowerCase() === 'true' };
+    } else {
+      studentAnswer = { value: String(req.body.text_value || '') };
+    }
+
+    // Save (upsert)
+    await pool.query(`
+      INSERT INTO lms_quiz_answers (attempt_id, question_id, student_answer, answered_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (attempt_id, question_id)
+      DO UPDATE SET student_answer = EXCLUDED.student_answer, answered_at = NOW()
+    `, [attempt.id, currentQ.id, studentAnswer]);
+
+    // Advance
+    const newIdx = idx + 1;
+    const isLast = newIdx >= questions.length;
+    await pool.query(
+      `UPDATE lms_quiz_attempts SET current_question_index = $1, last_activity_at = NOW() WHERE id = $2`,
+      [newIdx, attempt.id]);
+
+    if (isLast) {
+      await autoSubmitAttempt(attempt.id, quiz_id);
+      return res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
+    }
+    res.redirect(`/course/${courseId}/quizzes/${quiz_id}/take`);
+  } catch (err) {
+    console.error('[quiz-answer]', err);
+    res.status(500).send("Save Answer Error: " + err.message);
+  }
+});
+
+// ---------- MANUAL SUBMIT ----------
+app.post('/course/:id/quizzes/:quiz_id/submit', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id: courseId, quiz_id } = req.params;
+
+  try {
+    const aRes = await pool.query(
+      `SELECT * FROM lms_quiz_attempts
+       WHERE quiz_id = $1 AND student_id = $2 AND status = 'in_progress'
+       ORDER BY started_at DESC LIMIT 1`,
+      [quiz_id, req.session.user.id]);
+    if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
+
+    await autoSubmitAttempt(aRes.rows[0].id, quiz_id);
+    res.redirect(`/course/${courseId}/quizzes/${quiz_id}/result`);
+  } catch (err) {
+    console.error('[quiz-submit]', err);
+    res.status(500).send("Submit Error: " + err.message);
+  }
+});
+
+// ---------- ANTI-CHEAT FLAG ----------
+// Body: { reason?: 'tab_switch' | 'copy' | 'blur' }
+app.post('/course/:id/quizzes/:quiz_id/flag', async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ ok: false });
+  const { quiz_id } = req.params;
+
+  try {
+    const aRes = await pool.query(
+      `SELECT a.*, q.auto_submit_after_warnings, q.anti_cheat_enabled
+       FROM lms_quiz_attempts a JOIN lms_quizzes q ON q.id = a.quiz_id
+       WHERE a.quiz_id = $1 AND a.student_id = $2 AND a.status = 'in_progress'
+       ORDER BY a.started_at DESC LIMIT 1`,
+      [quiz_id, req.session.user.id]);
+    if (aRes.rows.length === 0) return res.json({ ok: true, ignored: true });
+    const attempt = aRes.rows[0];
+
+    if (!attempt.anti_cheat_enabled) return res.json({ ok: true, ignored: true });
+
+    const newCount = attempt.tab_switch_warnings + 1;
+    const reason = String(req.body?.reason || 'tab_switch').substring(0, 40);
+
+    await pool.query(
+      `UPDATE lms_quiz_attempts SET tab_switch_warnings = $1, last_activity_at = NOW() WHERE id = $2`,
+      [newCount, attempt.id]);
+
+    console.log(`[quiz-flag] attempt ${attempt.id} warning ${newCount}/${attempt.auto_submit_after_warnings} reason=${reason}`);
+
+    if (newCount >= attempt.auto_submit_after_warnings) {
+      await autoSubmitAttempt(attempt.id, quiz_id);
+      return res.json({ ok: true, submitted: true, warnings: newCount });
+    }
+    return res.json({
+      ok: true, submitted: false,
+      warnings: newCount,
+      remaining: attempt.auto_submit_after_warnings - newCount
+    });
+  } catch (err) {
+    console.error('[quiz-flag]', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ---------- STUDENT: RESULT / FEEDBACK ----------
+app.get('/course/:id/quizzes/:quiz_id/result', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { id: courseId, quiz_id } = req.params;
+
+  try {
+    const qRes = await pool.query(
+      `SELECT q.*, c.code AS course_code, c.title AS course_title
+       FROM lms_quizzes q JOIN courses c ON c.id = q.course_id
+       WHERE q.id = $1 AND q.course_id = $2`,
+      [quiz_id, courseId]);
+    if (qRes.rows.length === 0) return res.status(404).send("Quiz not found.");
+    const quiz = qRes.rows[0];
+
+    const aRes = await pool.query(
+      `SELECT * FROM lms_quiz_attempts
+       WHERE quiz_id = $1 AND student_id = $2
+       ORDER BY started_at DESC LIMIT 1`,
+      [quiz_id, req.session.user.id]);
+    if (aRes.rows.length === 0) return res.redirect(`/course/${courseId}?view=quizzes`);
+    const attempt = aRes.rows[0];
+
+    // Auto-release if gate is open
+    const isReleased = await maybeRelease(attempt, quiz);
+    if (isReleased) attempt.status = 'released';
+
+    // Load per-question breakdown only if released
+    let breakdown = [];
+    if (attempt.status === 'released') {
+      const qq = await pool.query(
+        `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position`, [quiz_id]);
+      const aa = await pool.query(
+        `SELECT * FROM lms_quiz_answers WHERE attempt_id = $1`, [attempt.id]);
+      const cc = await pool.query(
+        `SELECT id, question_id, text, is_correct, position
+         FROM lms_quiz_choices WHERE question_id = ANY($1) ORDER BY question_id, position`,
+        [qq.rows.map(x => x.id)]);
+
+      const ansByQ = {};
+      for (const a of aa.rows) ansByQ[a.question_id] = a;
+      const choicesByQ = {};
+      for (const c of cc.rows) {
+        if (!choicesByQ[c.question_id]) choicesByQ[c.question_id] = [];
+        choicesByQ[c.question_id].push(c);
+      }
+
+      for (const q of qq.rows) {
+        const a = ansByQ[q.id];
+        const chs = choicesByQ[q.id] || [];
+        let yourAnswerText = null, correctAnswerText = null;
+
+        if (q.type === 'MCQ') {
+          const sel = (a?.student_answer?.choice_ids) || [];
+          yourAnswerText = chs.filter(c => sel.includes(c.id)).map(c => c.text).join(', ') || null;
+          if (quiz.show_correct_answers) correctAnswerText = chs.filter(c => c.is_correct).map(c => c.text).join(', ');
+        } else if (q.type === 'TF') {
+          const v = a?.student_answer?.value;
+          yourAnswerText = v === true ? 'True' : v === false ? 'False' : null;
+          if (quiz.show_correct_answers) correctAnswerText = q.correct_answer?.value ? 'True' : 'False';
+        } else {
+          yourAnswerText = a?.student_answer?.value || null;
+          if (quiz.show_correct_answers && q.correct_answer) {
+            correctAnswerText = q.correct_answer.value || q.correct_answer.model_answer || null;
+          }
+        }
+
+        breakdown.push({
+          question: q,
+          answer: a,
+          choices: chs,
+          yourAnswerText,
+          correctAnswerText,
+          marksEarned: Number(a?.auto_score ?? 0) + Number(a?.manual_score ?? 0),
+          maxMarks: Number(q.marks),
+          isCorrect: a?.is_correct,
+          feedback: (quiz.show_feedback ? a?.teacher_feedback : null),
+          explanation: (quiz.show_feedback ? q.explanation : null)
+        });
+      }
+    }
+
+    res.render('lms-quiz-result', {
+      user: req.session.user,
+      course: { id: courseId, code: quiz.course_code, title: quiz.course_title },
+      quiz, attempt, breakdown, isReleased
+    });
+  } catch (err) {
+    console.error('[quiz-result]', err);
+    res.status(500).send("Result Error: " + err.message);
+  }
+});
+
+// ---------- TEACHER: FORCE-CLOSE ----------
+app.post('/course/:id/quizzes/:quiz_id/force-close', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const inProg = await pool.query(
+      `SELECT id FROM lms_quiz_attempts WHERE quiz_id = $1 AND status = 'in_progress'`,
+      [quiz_id]);
+    for (const row of inProg.rows) await autoSubmitAttempt(row.id, quiz_id);
+    // Also close the quiz window itself
+    await pool.query(`UPDATE lms_quizzes SET is_published = FALSE WHERE id = $1`, [quiz_id]);
+
+    console.log(`[force-close] quiz ${quiz_id}: submitted ${inProg.rows.length} in-progress attempts`);
+    res.redirect(`/course/${courseId}?view=quizzes`);
+  } catch (err) {
+    console.error('[force-close]', err);
+    res.status(500).send("Force-Close Error: " + err.message);
+  }
+});
+
+// ---------- TEACHER: GRADING QUEUE ----------
+app.get('/course/:id/quizzes/:quiz_id/grading', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const qRes = await pool.query(
+      `SELECT q.*, c.code AS course_code, c.title AS course_title
+       FROM lms_quizzes q JOIN courses c ON c.id = q.course_id
+       WHERE q.id = $1 AND q.course_id = $2`, [quiz_id, courseId]);
+    if (qRes.rows.length === 0) return res.status(404).send("Quiz not found.");
+    const quiz = qRes.rows[0];
+
+    const attemptsRes = await pool.query(`
+      SELECT a.*, u.full_name AS student_name
+      FROM lms_quiz_attempts a JOIN users u ON u.id = a.student_id
+      WHERE a.quiz_id = $1 AND a.status IN ('submitted','graded','released')
+      ORDER BY u.full_name ASC, a.submitted_at ASC
+    `, [quiz_id]);
+
+    // Attach per-question answers + which questions need manual grading
+    const manualQ = await pool.query(
+      `SELECT id, prompt, marks, type, correct_answer
+       FROM lms_quiz_questions
+       WHERE quiz_id = $1 AND auto_grade = FALSE
+       ORDER BY position`, [quiz_id]);
+
+    for (const att of attemptsRes.rows) {
+      const ansRes = await pool.query(
+        `SELECT * FROM lms_quiz_answers WHERE attempt_id = $1`, [att.id]);
+      const ansByQ = {};
+      for (const a of ansRes.rows) ansByQ[a.question_id] = a;
+      att.manual_questions = manualQ.rows.map(q => ({
+        question: q,
+        answer: ansByQ[q.id] || null
+      }));
+      att.has_unscored_manual = att.manual_questions.some(x => x.answer?.manual_score == null);
+    }
+
+    res.render('lms-quiz-grading', {
+      user: req.session.user,
+      course: { id: courseId, code: quiz.course_code, title: quiz.course_title },
+      quiz, attempts: attemptsRes.rows
+    });
+  } catch (err) {
+    console.error('[grading-queue]', err);
+    res.status(500).send("Grading Queue Error: " + err.message);
+  }
+});
+
+// ---------- TEACHER: SAVE MANUAL GRADES ----------
+// Form posts: manual_score_<question_id> = number, feedback_<question_id> = text
+app.post('/course/:id/quizzes/:quiz_id/grading/:attempt_id', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const { id: courseId, quiz_id, attempt_id } = req.params;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const aCheck = await pool.query(
+      `SELECT 1 FROM lms_quiz_attempts WHERE id = $1 AND quiz_id = $2`,
+      [attempt_id, quiz_id]);
+    if (aCheck.rows.length === 0) return res.status(404).send("Attempt not found.");
+
+    // Only grade questions on this quiz that need manual grading
+    const manualQ = await pool.query(
+      `SELECT id, marks FROM lms_quiz_questions WHERE quiz_id = $1 AND auto_grade = FALSE`,
+      [quiz_id]);
+
+    for (const q of manualQ.rows) {
+      const rawScore = req.body[`manual_score_${q.id}`];
+      const feedback = req.body[`feedback_${q.id}`];
+      if (rawScore === undefined) continue;
+
+      let score = Number(rawScore);
+      if (!Number.isFinite(score)) score = 0;
+      if (score < 0) score = 0;
+      if (score > q.marks) score = q.marks;
+
+      await pool.query(`
+        INSERT INTO lms_quiz_answers (attempt_id, question_id, manual_score, teacher_feedback, answered_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (attempt_id, question_id)
+        DO UPDATE SET manual_score = EXCLUDED.manual_score, teacher_feedback = EXCLUDED.teacher_feedback
+      `, [attempt_id, q.id, score, feedback || null]);
+    }
+
+    // Recompute totals + is_graded
+    const totals = await pool.query(`
+      SELECT COALESCE(SUM(COALESCE(auto_score,0) + COALESCE(manual_score,0)), 0) AS total
+      FROM lms_quiz_answers WHERE attempt_id = $1
+    `, [attempt_id]);
+    const totalScore = Number(totals.rows[0].total);
+
+    const quizRes = await pool.query(`SELECT total_marks FROM lms_quizzes WHERE id = $1`, [quiz_id]);
+    const totalMarks = Number(quizRes.rows[0]?.total_marks) || 0;
+    const pct = totalMarks > 0 ? (totalScore / totalMarks) * 100 : 0;
+
+    // Check if all manual questions are scored
+    const unscored = await pool.query(`
+      SELECT COUNT(*) AS n FROM lms_quiz_questions q
+      LEFT JOIN lms_quiz_answers a ON a.question_id = q.id AND a.attempt_id = $1
+      WHERE q.quiz_id = $2 AND q.auto_grade = FALSE AND a.manual_score IS NULL
+    `, [attempt_id, quiz_id]);
+    const allScored = parseInt(unscored.rows[0].n, 10) === 0;
+
+    await pool.query(`
+      UPDATE lms_quiz_attempts SET
+        total_score = $1, percentage = $2,
+        is_graded = $3,
+        graded_at = CASE WHEN $3 THEN NOW() ELSE graded_at END,
+        status = CASE WHEN $3 AND status = 'submitted' THEN 'graded' ELSE status END
+      WHERE id = $4
+    `, [totalScore, pct, allScored, attempt_id]);
+
+    res.redirect(`/course/${courseId}/quizzes/${quiz_id}/grading`);
+  } catch (err) {
+    console.error('[save-grade]', err);
+    res.status(500).send("Save Grade Error: " + err.message);
+  }
+});
+
+// ============================================
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
 
 app.listen(process.env.PORT || 3001, () => console.log('LuxMind LMS running'));
