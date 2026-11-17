@@ -161,7 +161,7 @@
 
   <div class="layout">
     <!-- ============================================== -->
-    <!-- EXPANDED LEFT SIDEBAR (ROLE-GUARDED) -->
+    <!-- EXPANDED LEFT SIDEBAR (ROLE-GUARDED, ATTENDANCE URL RESTORED) -->
     <!-- ============================================== -->
     <aside class="course-nav" id="sidebar">
       <div class="course-header-side">
@@ -195,10 +195,13 @@
 
         <% if (isTeacher) { %>
           <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
-          <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
+        <% } %>
+
+        <!-- Attendance — RESTORED to path-based URL for BOTH roles -->
+        <li><a href="/course/<%= course.id %>/attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
+
+        <% if (isTeacher) { %>
           <li><a href="/course/<%= course.id %>?view=groups" class="<%= view === 'groups' ? 'active' : '' %>"><i class="fa-solid fa-users-rectangle"></i> Student Groups</a></li>
-        <% } else { %>
-          <li><a href="/course/<%= course.id %>?view=attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> My Attendance</a></li>
         <% } %>
 
         <li><a href="/course/<%= course.id %>?view=messages" class="<%= view === 'messages' ? 'active' : '' %>"><i class="fa-solid fa-envelope"></i> Course Inbox</a></li>
@@ -283,7 +286,7 @@
                     <a href="?view=announcements" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-bullhorn"></i> Post Announcement</a>
                     <a href="?view=materials" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-upload"></i> Upload Material</a>
                     <a href="?view=assignments" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-file-circle-plus"></i> Create Assignment</a>
-                    <a href="?view=attendance" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-clipboard-user"></i> Take Attendance</a>
+                    <a href="/course/<%= course.id %>/attendance" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-clipboard-user"></i> Take Attendance</a>
                   <% } else { %>
                     <a href="?view=materials" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-folder-open"></i> View Course Materials</a>
                     <a href="?view=assignments" class="btn btn-outline" style="justify-content: flex-start;"><i class="fa-solid fa-file-pen"></i> View Assignments</a>
@@ -667,7 +670,6 @@
           <h3><i class="fa-solid fa-bolt"></i> Quick Actions</h3>
 
           <% if (isTeacher) { %>
-            <!-- Teacher quick actions -->
             <div class="quick-action" onclick="window.location.href='?view=announcements'">
               <i class="fa-solid fa-bullhorn"></i> Post Announcement
             </div>
@@ -680,14 +682,13 @@
             <div class="quick-action" onclick="window.location.href='?view=quizzes'">
               <i class="fa-solid fa-stopwatch"></i> Create Quiz
             </div>
-            <div class="quick-action" onclick="window.location.href='?view=attendance'">
+            <div class="quick-action" onclick="window.location.href='/course/<%= course.id %>/attendance'">
               <i class="fa-solid fa-list-check"></i> Take Attendance
             </div>
             <div class="quick-action" onclick="window.location.href='?view=messages'">
               <i class="fa-solid fa-envelope"></i> Send Message
             </div>
           <% } else { %>
-            <!-- Student quick actions -->
             <div class="quick-action" onclick="window.location.href='?view=assignments'">
               <i class="fa-solid fa-file-pen"></i> View Assignments
             </div>
