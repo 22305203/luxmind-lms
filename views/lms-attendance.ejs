@@ -24,18 +24,31 @@
     /* Attendance Table */
     .att-table { width: 100%; border-collapse: collapse; text-align: left; }
     .att-table th { padding: 12px; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
-    .att-table td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .att-table td { padding: 16px 12px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: center; }
     
-    .student-info { display: flex; align-items: center; gap: 12px; }
+    .student-info { display: flex; align-items: center; gap: 12px; text-align: left; }
     .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-weight: 800; }
     
-    .hour-cell { min-width: 140px; }
-    .qr-box { background: var(--bg-body); border: 1px dashed var(--border); border-radius: 8px; padding: 12px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 8px; }
+    .hour-cell { min-width: 160px; }
+    .qr-box { background: var(--bg-body); border: 1px dashed var(--border); border-radius: 8px; padding: 12px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 12px; }
     .qr-box:hover { border-color: var(--primary); background: var(--primary-soft); }
     .qr-icon { font-size: 24px; color: var(--primary); margin-bottom: 4px; }
     
-    .radio-group { display: flex; gap: 8px; justify-content: center; }
-    .radio-group label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+    /* Custom X Radio Buttons */
+    .x-group { display: flex; gap: 16px; justify-content: center; margin-bottom: 8px; }
+    .x-radio { cursor: pointer; }
+    .x-radio input { display: none; }
+    .x-mark {
+      display: flex; align-items: center; justify-content: center;
+      width: 48px; height: 48px; font-size: 28px; font-weight: 900;
+      border-radius: 12px; background: #fee2e2; color: #ef4444;
+      border: 2px solid #ef4444; transition: 0.2s;
+    }
+    .x-radio input:checked + .x-mark {
+      background: #dcfce3; color: #10b981; border-color: #10b981;
+    }
+
+    .meta-info { font-size: 11px; color: var(--text-muted); font-weight: 600; }
     
     /* QR Modal */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; place-items: center; }
@@ -47,7 +60,6 @@
 </head>
 <body>
 
-  <!-- Top Area with Back Button on Right -->
   <div class="top-bar">
     <h1 style="font-size: 24px; font-weight: 800;"><%= course.code %> Attendance</h1>
     <a href="/course/<%= course.id %>?view=dashboard" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Course</a>
@@ -88,7 +100,7 @@
         <tbody>
           <% students.forEach(st => { %>
             <tr>
-              <td style="font-weight: 600; color: var(--primary);"><%= st.admission_number %></td>
+              <td style="font-weight: 600; color: var(--primary); vertical-align: middle;"><%= st.admission_number %></td>
               <td>
                 <div class="student-info">
                   <div class="avatar"><%= st.full_name.charAt(0) %></div>
@@ -98,30 +110,36 @@
                   </div>
                 </div>
               </td>
-              <td style="font-weight: 600;">Fall 2024</td>
+              <td style="font-weight: 600; vertical-align: middle;">Fall 2024</td>
               
               <% sessions.forEach(sess => { 
                  const record = records.find(r => r.session_id === sess.id && r.student_id === st.id);
               %>
                 <td class="hour-cell">
-                  <!-- QR Box -->
                   <div class="qr-box" onclick="openQRModal(<%= sess.id %>, '<%= st.admission_number %>')">
                     <i class="fa-solid fa-qrcode qr-icon"></i>
                     <div style="font-size: 11px; font-weight: 600;">Show QR Code</div>
                   </div>
                   
-                  <!-- Radio Buttons -->
-                  <div class="radio-group">
-                    <label>
-                      <input type="radio" name="att_<%= sess.id %>_<%= st.id %>" value="present" 
-                        <%= record && record.status === 'present' ? 'checked' : '' %>
-                        onchange="markManual(<%= sess.id %>, <%= st.id %>, 'present')"> Present
-                    </label>
-                    <label>
-                      <input type="radio" name="att_<%= sess.id %>_<%= st.id %>" value="absent"
+                  <!-- Custom X Radio Buttons -->
+                  <div class="x-group">
+                    <label class="x-radio">
+                      <input type="radio" name="att_<%= sess.id %>_<%= st.id %>" value="absent" 
                         <%= record && record.status === 'absent' ? 'checked' : '' %>
-                        onchange="markManual(<%= sess.id %>, <%= st.id %>, 'absent')"> Absent
+                        onchange="markManual(<%= sess.id %>, <%= st.id %>, 'absent')">
+                      <span class="x-mark">X</span>
                     </label>
+                    <label class="x-radio">
+                      <input type="radio" name="att_<%= sess.id %>_<%= st.id %>" value="present"
+                        <%= record && record.status === 'present' ? 'checked' : '' %>
+                        onchange="markManual(<%= sess.id %>, <%= st.id %>, 'present')">
+                      <span class="x-mark">X</span>
+                    </label>
+                  </div>
+
+                  <!-- Date & Student ID below buttons -->
+                  <div class="meta-info">
+                    <%= selectedDate %> | ID: <%= st.admission_number %>
                   </div>
                 </td>
               <% }); %>
@@ -153,9 +171,10 @@
 
   <script>
     const courseId = <%= course.id %>;
+    const selectedDate = "<%= selectedDate %>";
     let timerInterval;
 
-    // 1. Manual Marking via Radio Buttons
+    // 1. Manual Marking
     function markManual(sessionId, studentId, status) {
       fetch(`/course/${courseId}/attendance/manual`, {
         method: 'POST',
@@ -166,8 +185,26 @@
       });
     }
 
-    // 2. Open QR Modal & Generate Token
-    function openQRModal(sessionId, studentId) {
+    // 2. Auto-Polling (Automatically checks if a student scanned the QR)
+    setInterval(() => {
+      fetch(`/course/${courseId}/attendance/status?date=${selectedDate}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.records) {
+            data.records.forEach(r => {
+              // Find the radio button for this student and session
+              const radio = document.querySelector(`input[name="att_${r.session_id}_${r.student_id}"][value="${r.status}"]`);
+              // If it's not checked, check it (which turns the X green)
+              if (radio && !radio.checked) {
+                radio.checked = true;
+              }
+            });
+          }
+        });
+    }, 3000); // Checks every 3 seconds
+
+    // 3. Open QR Modal & Generate Token
+    function openQRModal(sessionId) {
       const modal = document.getElementById('qrModal');
       const qrContainer = document.getElementById('qrcode');
       const timerDisplay = document.getElementById('timerDisplay');
@@ -175,7 +212,6 @@
       qrContainer.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size: 40px; color: var(--primary);"></i>';
       modal.classList.add('active');
 
-      // Get Teacher's GPS Location
       navigator.geolocation.getCurrentPosition((position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
@@ -189,8 +225,12 @@
         .then(data => {
           if (data.success) {
             qrContainer.innerHTML = '';
+            
+            // The URL that the student will open when they scan
+            const scanUrl = window.location.origin + `/course/${courseId}/attendance/scan?token=${data.token}`;
+            
             new QRCode(qrContainer, {
-              text: data.token,
+              text: scanUrl,
               width: 250,
               height: 250,
               colorDark : "#0f172a",
@@ -198,7 +238,6 @@
               correctLevel : QRCode.CorrectLevel.H
             });
 
-            // Start Countdown Timer
             let timeLeft = 100;
             timerDisplay.textContent = timeLeft + 's';
             clearInterval(timerInterval);
@@ -211,12 +250,10 @@
                 timerDisplay.textContent = 'Expired';
               }
             }, 1000);
-          } else {
-            qrContainer.innerHTML = '<div style="color: var(--danger);">Failed to generate token.</div>';
           }
         });
       }, (err) => {
-        alert("Please enable GPS/Location to generate a secure geofenced QR code.");
+        alert("Please enable GPS/Location to generate a secure QR code.");
         closeQRModal();
       });
     }

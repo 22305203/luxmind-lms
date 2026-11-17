@@ -1923,7 +1923,84 @@ app.post('/course/:id/attendance/scan', async (req, res) => {
   }
 });
 
+// 1. Student Scan Page (When they scan the QR, they land here)
+app.get('/course/:id/attendance/scan', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const courseId = req.params.id;
+  const { token } = req.query;
+  if (!token) return res.status(400).send("Invalid token.");
 
+  try {
+    const courseRes = await pool.query(`SELECT title, code FROM courses WHERE id = $1`, [courseId]);
+    if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
+    
+    res.render('lms-attendance-scan', { 
+      user: req.session.user, 
+      course: courseRes.rows[0], 
+      token 
+    });
+  } catch (err) {
+    res.status(500).send("Error: " + err.message);
+  }
+});
+
+// 2. Student Scan Submission (Verifies location and marks present)
+app.post('/course/:id/attendance/scan', async (req, res) => {
+  if (!req.session.user) return res.json({ success: false, error: "Not logged in" });
+  const { token, lat, lng } = req.body;
+  const courseId = req.params.id;
+
+  try {
+    const sessRes = await pool.query(`
+      SELECT s.*, c.title as course_title FROM lms_attendance_sessions s
+      JOIN courses c ON c.id = s.course_id
+      WHERE s.qr_token = $1 AND s.token_expires_at > NOW() AND s.course_id = $2
+    `, [token, courseId]);
+
+    if (sessRes.rows.length === 0) return res.json({ success: false, error: "QR Code expired or invalid." });
+    const session = sessRes.rows[0];
+
+    // Check if student is enrolled
+    const enroll = await pool.query(`SELECT 1 FROM enrollments WHERE course_id = $1 AND user_id = $2`, [courseId, req.session.user.id]);
+    if (enroll.rows.length === 0) return res.json({ success: false, error: "You are not enrolled in this course." });
+
+    // Check Distance (50 meters restriction)
+    const distance = getDistanceFromLatLonInMeters(lat, lng, session.teacher_lat, session.teacher_lng);
+    if (distance > 50) {
+      return res.json({ success: false, error: `Rejected: You are ${Math.round(distance)}m away from the classroom. Must be within 50m.` });
+    }
+
+    // Mark Present
+    await pool.query(`
+      INSERT INTO lms_attendance_records (session_id, student_id, status, method, scanned_lat, scanned_lng)
+      VALUES ($1, $2, 'present', 'qr', $3, $4)
+      ON CONFLICT (session_id, student_id) 
+      DO UPDATE SET status = 'present', method = 'qr', scanned_lat = EXCLUDED.scanned_lat, scanned_lng = EXCLUDED.scanned_lng
+    `, [session.id, req.session.user.id, lat, lng]);
+
+    res.json({ success: true, message: `Attendance confirmed for ${session.course_title}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Teacher Polling Route (To auto-update the radio buttons without refreshing)
+app.get('/course/:id/attendance/status', async (req, res) => {
+  if (!isTeacherRole(req.session.user)) return res.status(403).json({ error: "Access Denied" });
+  const { date } = req.query;
+  
+  try {
+    const sessions = await pool.query(`SELECT id FROM lms_attendance_sessions WHERE course_id = $1 AND date = $2`, [req.params.id, date]);
+    if (sessions.rows.length === 0) return res.json({ records: [] });
+    
+    const sessionIds = sessions.rows.map(s => s.id);
+    const records = await pool.query(`SELECT session_id, student_id, status FROM lms_attendance_records WHERE session_id = ANY($1)`, [sessionIds]);
+    
+    res.json({ records: records.rows });
+  } catch (err) {
+    res.json({ records: [] });
+  }
+});
 
 // ============================================
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });

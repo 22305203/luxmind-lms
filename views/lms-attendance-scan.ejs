@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan Attendance | <%= course.code %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    body { background: #f4f6fa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
+    .card { background: white; padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 400px; width: 90%; }
+    h2 { margin: 16px 0; font-size: 22px; color: #0f172a; }
+    p { color: #64748b; font-size: 14px; line-height: 1.5; }
+    .icon { font-size: 56px; margin-bottom: 16px; }
+    .loading { color: #4f46e5; }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .btn { display: inline-block; margin-top: 24px; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    
+    <div id="loading">
+      <i class="fa-solid fa-spinner fa-spin icon loading"></i>
+      <h2>Verifying Location...</h2>
+      <p>Please allow location access so we can confirm you are in the classroom.</p>
+    </div>
+
+    <div id="success" style="display: none;">
+      <i class="fa-solid fa-circle-check icon success"></i>
+      <h2>Attendance Confirmed!</h2>
+      <p id="successMsg" style="font-weight: 600; color: #10b981;"></p>
+      <p>Your teacher's gradebook has been automatically updated.</p>
+    </div>
+
+    <div id="error" style="display: none;">
+      <i class="fa-solid fa-circle-xmark icon error"></i>
+      <h2>Rejected</h2>
+      <p id="errorMsg" style="font-weight: 600; color: #ef4444;"></p>
+      <button onclick="window.location.reload()" class="btn">Try Again</button>
+    </div>
+
+  </div>
+
+  <script>
+    const courseId = <%= course.id %>;
+    const token = "<%= token %>";
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          fetch(`/course/${courseId}/attendance/scan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, lat, lng })
+          })
+          .then(res => res.json())
+          .then(data => {
+            document.getElementById('loading').style.display = 'none';
+            if (data.success) {
+              document.getElementById('success').style.display = 'block';
+              document.getElementById('successMsg').textContent = data.message;
+            } else {
+              document.getElementById('error').style.display = 'block';
+              document.getElementById('errorMsg').textContent = data.error;
+            }
+          });
+        },
+        (error) => {
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('error').style.display = 'block';
+          document.getElementById('errorMsg').textContent = "Location access denied. You must enable GPS to mark attendance.";
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('errorMsg').textContent = "Geolocation is not supported by this browser.";
+    }
+  </script>
+</body>
+</html>
