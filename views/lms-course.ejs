@@ -653,9 +653,9 @@
         <!-- QUESTION BANK VIEW -->
         <!-- ============================================== -->
         <% if (view === 'question-bank') { %>
-          <% if (isTeacher) { %>
-            <%- include('partials/question-bank') %>
-          <% } else { %>
+  <% if (isTeacher) { %>
+    <%- include('partials/question-bank', { bankQuestions: bankQuestions, course: course }) %>
+  <% } else { %>
             <div class="section-header"><h1 class="section-title">Access Denied</h1></div>
             <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
               <i class="fa-solid fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 16px;"></i>
