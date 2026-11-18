@@ -585,16 +585,172 @@ app.get('/course/:id', async (req, res) => {
     if (courseCheck.rows.length === 0) return res.send("Access Denied.");
     const course = courseCheck.rows[0];
 
+    // ============================================
+    // CRITICAL FIX: Declare ALL variables here
+    // ============================================
     let assignments = [], quizzes = [], grades = [], announcements = [], materials = [], students = [];
     let activeQuiz = null, activeQuizQuestions = [], activeQuizChoices = [];
     let bankQuestions = [];
-    
-    // Variables for Export Preview
     let exportStudents = [], exportAssessments = [], exportGradesMap = {};
+    let upcomingAssignments = [];   // <-- FIXED: Added this back
+    let latestAnnouncements = [];   // <-- FIXED: Added this back
+    let studentCount = 0;           // <-- FIXED: Added this back
 
-    // ... [Keep all the existing code for dashboard, assignments, quizzes, etc.] ...
+    if (view === 'dashboard' || view === 'assignments' || view === 'grades') {
+      if (isTeacher) {
+        const r = await pool.query(`
+          SELECT a.*, (SELECT COUNT(*) FROM lms_submissions s WHERE s.assignment_id = a.id) as submission_count
+          FROM lms_assignments a WHERE a.course_id = $1 ORDER BY a.due_date ASC
+        `, [courseId]);
+        assignments = r.rows;
+      } else {
+        const r = await pool.query(`
+          SELECT a.*, s.id as submission_id, s.file_url as submitted_file, s.grade, s.feedback, s.submitted_at
+          FROM lms_assignments a
+          LEFT JOIN lms_submissions s ON s.assignment_id = a.id AND s.student_id = $2
+          WHERE a.course_id = $1 AND a.is_published = true
+          ORDER BY a.due_date ASC
+        `, [courseId, req.session.user.id]);
+        assignments = r.rows;
+      }
+    }
 
-    // ADD THIS BLOCK FOR EXPORT PREVIEW
+    if (view === 'quizzes') {
+      let qSql = `
+        SELECT q.*,
+          (SELECT COUNT(*) FROM lms_quiz_attempts a
+             WHERE a.quiz_id = q.id AND a.status IN ('submitted','graded','released')) AS attempt_count,
+          (SELECT COUNT(*) FROM lms_quiz_questions qq WHERE qq.quiz_id = q.id) AS question_count
+        FROM lms_quizzes q
+        WHERE q.course_id = $1
+      `;
+      if (!isTeacher) qSql += ` AND q.is_published = TRUE`;
+      qSql += ` ORDER BY q.due_date ASC NULLS LAST, q.created_at DESC`;
+
+      const r = await pool.query(qSql, [courseId]);
+      quizzes = r.rows;
+
+      if (isTeacher && req.query.quiz_id) {
+        const quizRes = await pool.query(
+          `SELECT * FROM lms_quizzes WHERE id = $1 AND course_id = $2`,
+          [req.query.quiz_id, courseId]
+        );
+        if (quizRes.rows.length > 0) {
+          activeQuiz = quizRes.rows[0];
+          const qRes = await pool.query(
+            `SELECT * FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY position ASC`,
+            [req.query.quiz_id]
+          );
+          activeQuizQuestions = qRes.rows;
+          const cRes = await pool.query(
+            `SELECT c.* FROM lms_quiz_choices c
+             JOIN lms_quiz_questions q ON q.id = c.question_id
+             WHERE q.quiz_id = $1
+             ORDER BY c.question_id, c.position ASC`,
+            [req.query.quiz_id]
+          );
+          activeQuizChoices = cRes.rows;
+        }
+      }
+
+      if (!isTeacher && quizzes.length > 0) {
+        const atRes = await pool.query(
+          `SELECT * FROM lms_quiz_attempts
+           WHERE student_id = $1 AND quiz_id = ANY($2)
+           ORDER BY started_at DESC`,
+          [req.session.user.id, quizzes.map(q => q.id)]
+        );
+        const byQuiz = {};
+        for (const a of atRes.rows) {
+          if (!byQuiz[a.quiz_id]) byQuiz[a.quiz_id] = [];
+          byQuiz[a.quiz_id].push(a);
+        }
+        const now = new Date();
+        for (const q of quizzes) {
+          q.attempts = byQuiz[q.id] || [];
+          q.latest_attempt = q.attempts[0] || null;
+          q.is_open = (!q.open_at || new Date(q.open_at) <= now) &&
+                      (!q.close_at || new Date(q.close_at) > now);
+          q.has_in_progress = q.attempts.some(a => a.status === 'in_progress');
+          q.can_start = q.is_open && q.attempts.length < q.max_attempts && !q.has_in_progress;
+        }
+      }
+    }
+
+    if (view === 'announcements') {
+      if (!isTeacher) { await pool.query(`UPDATE users SET last_announcements_view_at = NOW() WHERE id = $1`, [req.session.user.id]); }
+      const r = await pool.query(`SELECT * FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC`, [courseId]); announcements = r.rows;
+    }
+
+    if (view === 'materials') {
+      if (isTeacher) {
+        const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
+      } else {
+        const m = await pool.query(`SELECT * FROM lms_materials WHERE course_id = $1 AND is_published = true ORDER BY week_number ASC, created_at DESC`, [courseId]); materials = m.rows;
+      }
+    }
+
+    if (view === 'students' && isTeacher) {
+      const st = await pool.query(`SELECT u.id, u.full_name, sp.admission_number, u.email FROM enrollments e JOIN users u ON u.id = e.user_id LEFT JOIN student_profiles sp ON sp.user_id = u.id WHERE e.course_id = $1`, [courseId]); students = st.rows;
+    }
+
+    if (view === 'grades') {
+      if (isTeacher) {
+        const r = await pool.query(`
+          SELECT 
+            s.id as record_id, 'Assignment' as item_type, s.submitted_at, s.grade as score, s.feedback, s.file_url,
+            u.full_name as student_name, u.id as student_id, a.title as item_title, a.max_points
+          FROM lms_submissions s
+          JOIN lms_assignments a ON a.id = s.assignment_id
+          JOIN users u ON u.id = s.student_id
+          WHERE a.course_id = $1
+          
+          UNION ALL
+          
+          SELECT 
+            qa.id as record_id, 'Quiz' as item_type, qa.submitted_at, qa.total_score as score, 'Auto-graded' as feedback, null as file_url,
+            u.full_name as student_name, u.id as student_id, q.title as item_title, q.total_marks as max_points
+          FROM lms_quiz_attempts qa
+          JOIN lms_quizzes q ON q.id = qa.quiz_id
+          JOIN users u ON u.id = qa.student_id
+          WHERE q.course_id = $1 AND qa.status IN ('submitted', 'graded', 'released')
+          
+          ORDER BY student_name ASC, submitted_at DESC
+        `, [courseId]);
+        grades = r.rows;
+      } else {
+        const r = await pool.query(`
+          SELECT 
+            s.id as record_id, 'Assignment' as item_type, s.submitted_at, s.grade as score, s.feedback, s.file_url,
+            a.title as item_title, a.max_points
+          FROM lms_submissions s
+          JOIN lms_assignments a ON a.id = s.assignment_id
+          WHERE s.student_id = $1 AND a.course_id = $2
+          
+          UNION ALL
+          
+          SELECT 
+            qa.id as record_id, 'Quiz' as item_type, qa.submitted_at, qa.total_score as score, 'Auto-graded' as feedback, null as file_url,
+            q.title as item_title, q.total_marks as max_points
+          FROM lms_quiz_attempts qa
+          JOIN lms_quizzes q ON q.id = qa.quiz_id
+          WHERE qa.student_id = $1 AND q.course_id = $2 AND qa.status IN ('submitted', 'graded', 'released')
+          
+          ORDER BY submitted_at DESC
+        `, [req.session.user.id, courseId]);
+        grades = r.rows;
+      }
+    }
+
+    if (view === 'question-bank') {
+      if (!isTeacher) return res.status(403).send("Access Denied.");
+      const bqRes = await pool.query(
+        `SELECT * FROM lms_question_bank WHERE course_id = $1 ORDER BY created_at DESC`,
+        [courseId]
+      );
+      bankQuestions = bqRes.rows;
+    }
+
     if (view === 'export-grades') {
       if (!isTeacher) return res.status(403).send("Access Denied.");
       
@@ -634,7 +790,18 @@ app.get('/course/:id', async (req, res) => {
       });
     }
 
-    // ... [Keep the rest of the code for question-bank, dashboard, etc.] ...
+    if (view === 'dashboard') {
+      const a = await pool.query(`SELECT title, due_date FROM lms_assignments WHERE course_id = $1 AND due_date > NOW() ORDER BY due_date ASC LIMIT 3`, [courseId]);
+      upcomingAssignments = a.rows;
+
+      const an = await pool.query(`SELECT title, message, created_at FROM lms_announcements WHERE course_id = $1 OR course_id IS NULL ORDER BY created_at DESC LIMIT 2`, [courseId]);
+      latestAnnouncements = an.rows;
+
+      if (isTeacher) {
+        const sc = await pool.query(`SELECT COUNT(*) FROM enrollments WHERE course_id = $1`, [courseId]);
+        studentCount = parseInt(sc.rows[0].count);
+      }
+    }
 
     res.render('lms-course', {
       user: req.session.user, isTeacher, course, view,
@@ -645,9 +812,12 @@ app.get('/course/:id', async (req, res) => {
       activeQuiz, activeQuizQuestions, activeQuizChoices,
       selectedQuizId: req.query.quiz_id || null,
       bankQuestions,
-      exportStudents, exportAssessments, exportGradesMap // <-- ADD THESE
+      exportStudents, exportAssessments, exportGradesMap
     });
-  } catch (err) { res.status(500).send("Course Error: " + err.message); }
+  } catch (err) { 
+    console.error("[Course Route Error]", err);
+    res.status(500).send("Course Error: " + err.message); 
+  }
 });
 
 // ============================================
