@@ -559,9 +559,14 @@
         <!-- ============================================== -->
         <!-- GRADES VIEW (COMBINED ASSIGNMENTS & QUIZZES) -->
         <!-- ============================================== -->
-        <% if (view === 'grades') { %>
-          <div class="section-header">
+                <% if (view === 'grades') { %>
+          <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h1 class="section-title">Gradebook</h1>
+            <% if (isTeacher) { %>
+              <a href="/course/<%= course.id %>/export-grades" class="btn" style="background: #10b981; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-file-excel"></i> Export to CSV (Excel)
+              </a>
+            <% } %>
           </div>
 
           <div class="item-card" style="display: block; padding: 24px; background: var(--bg-surface); border-radius: 16px; border: 1px solid var(--border); overflow-x: auto;">

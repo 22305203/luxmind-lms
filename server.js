@@ -783,6 +783,89 @@ app.get('/course/:id', async (req, res) => {
 });
 
 // ============================================
+// EXPORT GRADES (CSV)
+// ============================================
+app.get('/course/:id/export-grades', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    // 1. Fetch Students
+    const studentsRes = await pool.query(`
+      SELECT u.id, u.full_name, COALESCE(sp.admission_number, u.id::text) as admission_number
+      FROM enrollments e
+      JOIN users u ON u.id = e.user_id
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      WHERE e.course_id = $1
+      ORDER BY admission_number ASC
+    `, [courseId]);
+    const students = studentsRes.rows;
+
+    // 2. Fetch Assessments (Assignments + Quizzes)
+    const assessmentsRes = await pool.query(`
+      SELECT id, 'Assignment' as type, title, max_points FROM lms_assignments WHERE course_id = $1 AND is_published = TRUE
+      UNION ALL
+      SELECT id, 'Quiz' as type, title, total_marks as max_points FROM lms_quizzes WHERE course_id = $1 AND is_published = TRUE
+      ORDER BY type, id ASC
+    `, [courseId]);
+    const assessments = assessmentsRes.rows;
+
+    // 3. Fetch Grades
+    const gradesRes = await pool.query(`
+      SELECT s.student_id, 'Assignment' as type, a.id as item_id, s.grade as score
+      FROM lms_submissions s
+      JOIN lms_assignments a ON a.id = s.assignment_id
+      WHERE a.course_id = $1
+      UNION ALL
+      SELECT qa.student_id, 'Quiz' as type, q.id as item_id, qa.total_score as score
+      FROM lms_quiz_attempts qa
+      JOIN lms_quizzes q ON q.id = qa.quiz_id
+      WHERE q.course_id = $1 AND qa.status IN ('submitted', 'graded', 'released')
+    `, [courseId]);
+    const grades = gradesRes.rows;
+
+    // Create a dictionary for O(1) lookups: gradesMap[studentId][type_itemId] = score
+    const gradesMap = {};
+    grades.forEach(g => {
+      if (!gradesMap[g.student_id]) gradesMap[g.student_id] = {};
+      gradesMap[g.student_id][`${g.type}_${g.item_id}`] = g.score !== null ? g.score : '';
+    });
+
+    // 4. Build CSV Header
+    let csv = 'Admission Number,Student Name';
+    assessments.forEach(a => {
+      // Sanitize title to prevent CSV injection and format nicely
+      const safeTitle = a.title.replace(/"/g, '""');
+      csv += `,"${a.type}: ${safeTitle} (${a.max_points} pts)"`;
+    });
+    csv += '\n';
+
+    // 5. Build CSV Rows
+    students.forEach(st => {
+      let row = `"${st.admission_number}","${st.full_name.replace(/"/g, '""')}"`;
+      
+      assessments.forEach(a => {
+        const score = gradesMap[st.id] ? gradesMap[st.id][`${a.type}_${a.id}`] : '';
+        row += `,"${score}"`;
+      });
+      
+      csv += row + '\n';
+    });
+
+    // 6. Send File
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="Course_${courseId}_Grades.csv"`);
+    res.status(200).send(csv);
+
+  } catch (err) {
+    console.error('[export-grades]', err);
+    res.status(500).send("Export Grades Error: " + err.message);
+  }
+});
+
+// ============================================
 // ANNOUNCEMENTS
 // ============================================
 app.post('/course/:id/announcements', async (req, res) => {
@@ -2223,118 +2306,6 @@ app.post('/course/:id/quizzes/:quiz_id/questions/:question_id/save-to-bank', asy
     res.status(500).send("Save to Bank Error: " + err.message);
   }
 });
-
-// 5. ADD bank questions → quiz (bulk, one transaction)
-app.post('/course/:id/quizzes/:quiz_id/questions/from-bank', async (req, res) => {
-  if (!req.session.user) return res.redirect('/login');
-  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
-  const { id: courseId, quiz_id } = req.params;
-  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
-
-  const raw = req.body.bank_ids;
-  const bankIds = (Array.isArray(raw) ? raw : [raw])
-    .map(x => parseInt(x, 10))
-    .filter(Number.isFinite);
-  if (bankIds.length === 0) return res.status(400).send("No questions selected.");
-
-  try {
-    const quizChk = await pool.query(
-      `SELECT 1 FROM lms_quizzes WHERE id = $1 AND course_id = $2`,
-      [quiz_id, courseId]
-    );
-    if (quizChk.rows.length === 0) return res.status(404).send("Quiz not found.");
-
-    const bankRes = await pool.query(
-      `SELECT * FROM lms_question_bank WHERE id = ANY($1) AND course_id = $2`,
-      [bankIds, courseId]
-    );
-    if (bankRes.rows.length !== bankIds.length) {
-      return res.status(400).send("One or more bank questions do not belong to this course.");
-    }
-    const byId = {};
-    for (const bq of bankRes.rows) byId[bq.id] = bq;
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      const posRes = await client.query(
-        `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM lms_quiz_questions WHERE quiz_id = $1`,
-        [quiz_id]
-      );
-      let nextPos = parseInt(posRes.rows[0].next_pos, 10);
-
-      for (const bankId of bankIds) {
-        const bq = byId[bankId];
-        if (!bq) continue;
-
-        const qIns = await client.query(`
-          INSERT INTO lms_quiz_questions
-            (quiz_id, position, type, prompt, explanation, marks, correct_answer,
-             auto_grade, case_insensitive, synonyms, tolerance, source_bank_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          RETURNING id
-        `, [
-          quiz_id, nextPos, bq.type, bq.prompt, bq.explanation, bq.marks,
-          bq.correct_answer ? JSON.stringify(bq.correct_answer) : null,
-          bq.auto_grade, bq.case_insensitive,
-          bq.synonyms ? JSON.stringify(bq.synonyms) : null,
-          bq.tolerance, bq.id
-        ]);
-        const newQId = qIns.rows[0].id;
-
-        // Rebuild choices from the bank's inline array
-        if ((bq.type === 'MCQ' || bq.type === 'TF') && Array.isArray(bq.choices)) {
-          for (let i = 0; i < bq.choices.length; i++) {
-            const c = bq.choices[i];
-            await client.query(
-              `INSERT INTO lms_quiz_choices (question_id, position, text, is_correct)
-               VALUES ($1, $2, $3, $4)`,
-              [newQId, i, c.text, c.is_correct]
-            );
-          }
-          if (bq.type === 'MCQ') {
-            const positions = bq.choices
-              .map((c, i) => c.is_correct ? i : -1)
-              .filter(x => x >= 0);
-            await client.query(
-              `UPDATE lms_quiz_questions SET correct_answer = $1 WHERE id = $2`,
-              [JSON.stringify({ positions }), newQId]
-            );
-          } else if (bq.type === 'TF') {
-            const correct = bq.choices.find(c => c.is_correct);
-            const value = correct ? correct.text.toLowerCase() === 'true' : false;
-            await client.query(
-              `UPDATE lms_quiz_questions SET correct_answer = $1 WHERE id = $2`,
-              [JSON.stringify({ value }), newQId]
-            );
-          }
-        }
-
-        await client.query(
-          `UPDATE lms_question_bank SET usage_count = usage_count + 1 WHERE id = $1`,
-          [bq.id]
-        );
-
-        nextPos++;
-      }
-
-      await client.query('COMMIT');
-      console.log('[qbank-add-from-bank]', bankIds.length, 'questions → quiz', quiz_id);
-      res.redirect(`/course/${courseId}?view=quizzes&quiz_id=${quiz_id}`);
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error('[qbank-add-from-bank]', err);
-    res.status(500).send("Add from Bank Error: " + err.message);
-  }
-});
-
-
 
 // ============================================
 app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
