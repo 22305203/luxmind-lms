@@ -161,7 +161,7 @@
 
   <div class="layout">
     <!-- ============================================== -->
-    <!-- EXPANDED LEFT SIDEBAR (ROLE-GUARDED, ATTENDANCE URL RESTORED) -->
+    <!-- EXPANDED LEFT SIDEBAR (ROLE-GUARDED) -->
     <!-- ============================================== -->
     <aside class="course-nav" id="sidebar">
       <div class="course-header-side">
@@ -197,7 +197,6 @@
           <li><a href="/course/<%= course.id %>?view=students" class="<%= view === 'students' ? 'active' : '' %>"><i class="fa-solid fa-users"></i> Class Roster</a></li>
         <% } %>
 
-        <!-- Attendance — RESTORED to path-based URL for BOTH roles -->
         <li><a href="/course/<%= course.id %>/attendance" class="<%= view === 'attendance' ? 'active' : '' %>"><i class="fa-solid fa-clipboard-user"></i> Attendance</a></li>
 
         <% if (isTeacher) { %>
@@ -647,15 +646,12 @@
         <% } %>
 
         <!-- ============================================== -->
-        <!-- OTHER VIEWS PLACEHOLDER -->
-        <!-- ============================================== -->
-                <!-- ============================================== -->
         <!-- QUESTION BANK VIEW -->
         <!-- ============================================== -->
         <% if (view === 'question-bank') { %>
-  <% if (isTeacher) { %>
-    <%- include('partials/question-bank', { bankQuestions: bankQuestions, course: course }) %>
-  <% } else { %>
+          <% if (isTeacher) { %>
+            <%- include('partials/question-bank', { bankQuestions: bankQuestions, course: course }) %>
+          <% } else { %>
             <div class="section-header"><h1 class="section-title">Access Denied</h1></div>
             <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
               <i class="fa-solid fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 16px;"></i>
@@ -669,15 +665,6 @@
         <!-- OTHER VIEWS PLACEHOLDER -->
         <!-- ============================================== -->
         <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'announcements' && view !== 'question-bank') { %>
-          <div class="section-header">
-            <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
-          </div>
-          <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
-            <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--text-muted); margin-bottom: 16px;"></i>
-            <h3 style="color: var(--text-main); margin-bottom: 8px;">Under Construction</h3>
-            <p style="color: var(--text-muted); font-size:13px;">The <%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %> module is coming in the next update.</p>
-          </div>
-        <% } %>
           <div class="section-header">
             <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
