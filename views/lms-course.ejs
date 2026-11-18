@@ -557,25 +557,56 @@
         <% } %>
 
 
-        <!-- ============================================== -->
-        <!-- EXPORT GRADES VIEW -->
+              <!-- ============================================== -->
+        <!-- EXPORT GRADES PREVIEW VIEW -->
         <!-- ============================================== -->
         <% if (view === 'export-grades') { %>
-          <div class="section-header">
-            <h1 class="section-title">Export Grades</h1>
-          </div>
-          <div class="item-card" style="display: block; padding: 40px; text-align: center; background: var(--bg-surface); border-radius: 16px; border: 1px solid var(--border);">
-            <i class="fa-solid fa-file-excel" style="font-size: 64px; color: #10b981; margin-bottom: 24px;"></i>
-            <h2 style="font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px;">Download Gradebook</h2>
-            <p style="color: var(--text-muted); margin-bottom: 32px; max-width: 500px; margin-left: auto; margin-right: auto;">
-              Export all student grades, including assignments, projects, and quizzes, into a CSV file that can be opened in Microsoft Excel or Google Sheets.
-            </p>
-            <a href="/course/<%= course.id %>/export-grades" class="btn" style="background: #10b981; color: white; padding: 14px 32px; font-size: 16px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
-              <i class="fa-solid fa-download"></i> Download CSV File
+          <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h1 class="section-title">Export Grades Preview</h1>
+            <a href="/course/<%= course.id %>/export-grades/download" class="btn" style="background: #10b981; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-download"></i> Download as CSV
             </a>
           </div>
-        <% } %>
 
+          <div class="item-card" style="display: block; padding: 24px; background: var(--bg-surface); border-radius: 16px; border: 1px solid var(--border); overflow-x: auto;">
+            <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 13px;">
+              This is a preview of the data that will be downloaded. The downloaded CSV will include all assignments, projects, and quizzes.
+            </p>
+            
+            <% if (exportStudents.length === 0) { %>
+              <p style="text-align: center; color: var(--text-muted); padding: 40px;">No students enrolled.</p>
+            <% } else { %>
+              <table class="grade-table">
+                <thead>
+                  <tr>
+                    <th>Admission #</th>
+                    <th>Student Name</th>
+                    <% exportAssessments.forEach(a => { %>
+                      <th><%= a.type %>: <%= a.title %> (<%= a.max_points %>)</th>
+                    <% }); %>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% exportStudents.forEach(st => { %>
+                    <tr>
+                      <td style="font-weight: 600; color: var(--primary);"><%= st.admission_number %></td>
+                      <td style="font-weight: 600; color: var(--text-main);"><%= st.full_name %></td>
+                      <% exportAssessments.forEach(a => { %>
+                        <% 
+                          let score = '-';
+                          if (exportGradesMap[st.id] && exportGradesMap[st.id][`${a.type}_${a.id}`] !== undefined) {
+                            score = exportGradesMap[st.id][`${a.type}_${a.id}`];
+                          }
+                        %>
+                        <td><%= score %></td>
+                      <% }); %>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            <% } %>
+          </div>
+        <% } %>
 
         <!-- ============================================== -->
         <!-- GRADES VIEW (COMBINED ASSIGNMENTS & QUIZZES) -->
@@ -690,7 +721,7 @@
         <!-- ============================================== -->
         <!-- OTHER VIEWS PLACEHOLDER -->
         <!-- ============================================== -->
-        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'export-grades') { %>
+       <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'export-grades') { %>
           <div class="section-header">
             <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
