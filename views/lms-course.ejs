@@ -678,8 +678,9 @@
       </main>
 
       <!-- ============================================== -->
-      <!-- EXPANDED RIGHT SIDEBAR (ROLE-GUARDED QUICK ACTIONS) -->
+      <!-- EXPANDED RIGHT SIDEBAR (ONLY VISIBLE ON DASHBOARD) -->
       <!-- ============================================== -->
+      <% if (view === 'dashboard') { %>
       <aside class="right-sidebar">
         <div class="widget">
           <h3><i class="fa-solid fa-bolt"></i> Quick Actions</h3>
@@ -731,6 +732,7 @@
           <p style="font-size: 13px; color: var(--text-muted);"><strong>Credits:</strong> <%= course.credits %></p>
         </div>
       </aside>
+      <% } %>
     </div>
   </div>
 
