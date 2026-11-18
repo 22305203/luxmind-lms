@@ -1,0 +1,221 @@
+<!-- ADD / EDIT MODAL -->
+<div id="bankModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 20px;">
+  <div style="background: var(--bg-surface); width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); position: relative;">
+    
+    <div style="position: sticky; top: 0; background: var(--bg-surface); padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; z-index: 10;">
+      <h3 id="bankModalTitle" style="margin: 0; font-size: 18px; color: var(--primary);">Add New Question</h3>
+      <button type="button" onclick="closeBankModal()" style="background: none; border: none; font-size: 20px; color: var(--text-muted); cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form id="bankForm" method="POST" action="/course/<%= course.id %>/question-bank" style="padding: 24px;">
+      
+      <!-- Hidden input for Edit ID -->
+      <input type="hidden" id="bankEditId" name="_edit_id" value="">
+
+      <!-- Type Switcher -->
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+        <% const types = [
+          { v:'MCQ', l:'Multiple Choice', i:'fa-list-check' },
+          { v:'TF', l:'True / False', i:'fa-toggle-on' },
+          { v:'FILL_BLANK', l:'Fill in the Blank', i:'fa-keyboard' },
+          { v:'SHORT_ANSWER', l:'Short Answer', i:'fa-pen' },
+          { v:'ESSAY', l:'Essay', i:'fa-align-left' }
+        ]; %>
+        <% types.forEach((t, i) => { %>
+          <label style="cursor: pointer;">
+            <input type="radio" name="type" value="<%= t.v %>" <%= i === 0 ? 'checked' : '' %> style="display: none;" class="qb-type-radio" onchange="toggleBankFields()">
+            <span class="qb-type-tab" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); font-size: 12px; font-weight: 700; color: var(--text-main);">
+              <i class="fa-solid <%= t.i %>"></i> <%= t.l %>
+            </span>
+          </label>
+        <% }); %>
+      </div>
+
+      <!-- Common Fields -->
+      <div style="display: grid; gap: 16px; margin-bottom: 20px;">
+        <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+          Question Prompt *
+          <textarea id="bankPrompt" name="prompt" class="form-input" rows="3" required placeholder="Enter the question..." style="margin-top: 6px;"></textarea>
+        </label>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+            Marks *
+            <input type="number" id="bankMarks" name="marks" class="form-input" value="1" min="0" required style="margin-top: 6px;">
+          </label>
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+            Difficulty
+            <select id="bankDiff" name="difficulty" class="form-input" style="margin-top: 6px;">
+              <option value="">-- None --</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+            Topic (Optional)
+            <input type="text" id="bankTopic" name="topic" class="form-input" placeholder="e.g. Macroeconomics" style="margin-top: 6px;">
+          </label>
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+            Tags (comma separated)
+            <input type="text" id="bankTags" name="tags" class="form-input" placeholder="e.g. chapter-1, exam" style="margin-top: 6px;">
+          </label>
+        </div>
+      </div>
+
+      <!-- MCQ FIELDS -->
+      <div data-qb-for="MCQ" style="display: block; padding: 16px; background: var(--bg-body); border-radius: 10px; margin-bottom: 20px;">
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;">Choices — check the correct one(s)</div>
+        <% ['A','B','C','D'].forEach((letter, i) => { %>
+          <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+            <input type="checkbox" name="choice_correct[]" value="<%= i %>" class="qb-mcq-correct" style="width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer;">
+            <span style="font-weight: 800; color: var(--text-muted); width: 20px;"><%= letter %></span>
+            <input type="text" name="choice_texts[]" class="form-input qb-mcq-text" placeholder="Choice <%= letter %>" style="flex: 1;">
+          </div>
+        <% }); %>
+      </div>
+
+      <!-- TF FIELDS -->
+      <div data-qb-for="TF" style="display: none; padding: 16px; background: var(--bg-body); border-radius: 10px; margin-bottom: 20px;">
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;">Correct Answer</div>
+        <select id="bankTf" name="tf_value" class="form-input">
+          <option value="true">True</option>
+          <option value="false">False</option>
+        </select>
+      </div>
+
+      <!-- FILL BLANK FIELDS -->
+      <div data-qb-for="FILL_BLANK" style="display: none; padding: 16px; background: var(--bg-body); border-radius: 10px; margin-bottom: 20px;">
+        <div style="display: grid; gap: 12px;">
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+            Correct Answer *
+            <input type="text" id="bankFill" name="fill_value" class="form-input" placeholder="Exact answer" style="margin-top: 6px;">
+          </label>
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+            Alternative Answers (comma separated)
+            <input type="text" id="bankSyns" name="synonyms" class="form-input" placeholder="e.g. GDP, Gross Domestic Product" style="margin-top: 6px;">
+          </label>
+        </div>
+      </div>
+
+      <!-- SHORT ANSWER / ESSAY FIELDS -->
+      <div data-qb-for="SHORT_ANSWER ESSAY" style="display: none; padding: 16px; background: var(--bg-body); border-radius: 10px; margin-bottom: 20px;">
+        <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block;">
+          Model Answer (Optional)
+          <textarea id="bankModel" name="model_answer" class="form-input" rows="3" placeholder="For your reference only" style="margin-top: 6px;"></textarea>
+        </label>
+      </div>
+
+      <!-- Common: Explanation -->
+      <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 20px;">
+        Explanation (Optional — shown after release)
+        <textarea id="bankExp" name="explanation" class="form-input" rows="2" placeholder="Why is this the correct answer?" style="margin-top: 6px;"></textarea>
+      </label>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 20px;">
+        <button type="button" class="btn btn-outline" onclick="closeBankModal()">Cancel</button>
+        <button type="submit" class="btn" id="bankSubmitBtn">Save to Bank</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Toggle fields based on type
+  function toggleBankFields() {
+    const sel = document.querySelector('.qb-type-radio:checked')?.value;
+    
+    // Highlight active tab
+    document.querySelectorAll('.qb-type-tab').forEach((t, i) => {
+      const r = document.querySelectorAll('.qb-type-radio')[i];
+      if (r.checked) {
+        t.style.background = 'var(--primary)';
+        t.style.color = '#fff';
+        t.style.borderColor = 'var(--primary)';
+      } else {
+        t.style.background = 'var(--bg-body)';
+        t.style.color = 'var(--text-main)';
+        t.style.borderColor = 'var(--border)';
+      }
+    });
+
+    // Show/hide field groups
+    document.querySelectorAll('[data-qb-for]').forEach(g => {
+      g.style.display = g.dataset.qbFor.split(' ').includes(sel) ? 'block' : 'none';
+    });
+  }
+
+  function openBankModal() {
+    document.getElementById('bankForm').reset();
+    document.getElementById('bankEditId').value = '';
+    document.getElementById('bankModalTitle').textContent = 'Add New Question';
+    document.getElementById('bankForm').action = '/course/<%= course.id %>/question-bank';
+    document.getElementById('bankSubmitBtn').textContent = 'Save to Bank';
+    
+    // Reset tabs
+    document.querySelector('.qb-type-radio').checked = true;
+    toggleBankFields();
+    
+    document.getElementById('bankModal').style.display = 'flex';
+  }
+
+  function closeBankModal() {
+    document.getElementById('bankModal').style.display = 'none';
+  }
+
+  function editBankQuestion(q) {
+    document.getElementById('bankForm').reset();
+    document.getElementById('bankEditId').value = q.id;
+    document.getElementById('bankModalTitle').textContent = 'Edit Question';
+    document.getElementById('bankForm').action = '/course/<%= course.id %>/question-bank/' + q.id;
+    document.getElementById('bankSubmitBtn').textContent = 'Update Question';
+    
+    // Fill common fields
+    document.getElementById('bankPrompt').value = q.prompt || '';
+    document.getElementById('bankMarks').value = q.marks || 1;
+    document.getElementById('bankDiff').value = q.difficulty || '';
+    document.getElementById('bankTopic').value = q.topic || '';
+    document.getElementById('bankExp').value = q.explanation || '';
+    
+    // Tags
+    const tags = Array.isArray(q.tags) ? q.tags : [];
+    document.getElementById('bankTags').value = tags.join(', ');
+
+    // Set type
+    const radios = document.querySelectorAll('.qb-type-radio');
+    radios.forEach(r => { if (r.value === q.type) r.checked = true; });
+    toggleBankFields();
+
+    // Fill type-specific fields
+    if (q.type === 'MCQ' && Array.isArray(q.choices)) {
+      const textInputs = document.querySelectorAll('.qb-mcq-text');
+      const correctBoxes = document.querySelectorAll('.qb-mcq-correct');
+      
+      // Clear all first
+      textInputs.forEach(i => i.value = '');
+      correctBoxes.forEach(c => c.checked = false);
+
+      q.choices.forEach((c, i) => {
+        if (textInputs[i]) {
+          textInputs[i].value = c.text;
+          if (c.is_correct) correctBoxes[i].checked = true;
+        }
+      });
+    } else if (q.type === 'TF' && q.correct_answer) {
+      document.getElementById('bankTf').value = q.correct_answer.value ? 'true' : 'false';
+    } else if (q.type === 'FILL_BLANK' && q.correct_answer) {
+      document.getElementById('bankFill').value = q.correct_answer.value || '';
+      document.getElementById('bankSyns').value = (q.correct_answer.synonyms || []).join(', ');
+    } else if ((q.type === 'SHORT_ANSWER' || q.type === 'ESSAY') && q.correct_answer) {
+      document.getElementById('bankModel').value = q.correct_answer.model_answer || '';
+    }
+
+    document.getElementById('bankModal').style.display = 'flex';
+  }
+
+  // Init
+  toggleBankFields();
+</script>

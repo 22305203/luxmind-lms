@@ -1,0 +1,146 @@
+<%
+  // Ensure bankQuestions is always an array
+  const bank = typeof bankQuestions !== 'undefined' ? bankQuestions : [];
+  
+  // Helper to format tags
+  const getTags = (t) => Array.isArray(t) ? t : (typeof t === 'string' ? JSON.parse(t) : []);
+%>
+
+<div class="section-header" style="flex-wrap: wrap; gap: 12px;">
+  <h1 class="section-title">
+    <i class="fa-solid fa-database" style="color: var(--primary); margin-right: 8px;"></i>
+    Question Bank
+  </h1>
+  <button type="button" class="btn" onclick="openBankModal()">
+    <i class="fa-solid fa-plus"></i> New Question
+  </button>
+</div>
+
+<!-- FILTERS & SEARCH -->
+<div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; background: var(--bg-surface); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+  <input type="text" id="qbSearch" class="form-input" placeholder="🔍 Search questions..." style="flex: 1; min-width: 200px;" onkeyup="filterBank()">
+  
+  <select id="qbTypeFilter" class="form-input" style="width: auto;" onchange="filterBank()">
+    <option value="all">All Types</option>
+    <option value="MCQ">MCQ</option>
+    <option value="TF">True / False</option>
+    <option value="FILL_BLANK">Fill in the Blank</option>
+    <option value="SHORT_ANSWER">Short Answer</option>
+    <option value="ESSAY">Essay</option>
+  </select>
+
+  <select id="qbDiffFilter" class="form-input" style="width: auto;" onchange="filterBank()">
+    <option value="all">All Difficulty</option>
+    <option value="easy">🟢 Easy</option>
+    <option value="medium">🟡 Medium</option>
+    <option value="hard">🔴 Hard</option>
+  </select>
+</div>
+
+<!-- QUESTION LIST -->
+<div id="qbList" style="display: flex; flex-direction: column; gap: 12px;">
+  <% if (bank.length === 0) { %>
+    <div class="empty-state" style="text-align: center; padding: 60px; background: var(--bg-surface); border-radius: 16px; border: 1px dashed var(--border);">
+      <i class="fa-solid fa-box-open" style="font-size: 48px; color: var(--border); margin-bottom: 16px;"></i>
+      <h3 style="color: var(--text-main); margin-bottom: 8px;">Your bank is empty</h3>
+      <p style="color: var(--text-muted); font-size: 14px;">Click "New Question" to start building your library.</p>
+    </div>
+  <% } else { %>
+    <% bank.forEach(q => { %>
+      <%
+        let typeColor = '#3b82f6'; // blue
+        let typeLabel = 'MCQ';
+        if (q.type === 'TF') { typeColor = '#8b5cf6'; typeLabel = 'True / False'; }
+        if (q.type === 'FILL_BLANK') { typeColor = '#f59e0b'; typeLabel = 'Fill in the Blank'; }
+        if (q.type === 'SHORT_ANSWER') { typeColor = '#ec4899'; typeLabel = 'Short Answer'; }
+        if (q.type === 'ESSAY') { typeColor = '#10b981'; typeLabel = 'Essay'; }
+
+        let diffLabel = 'No difficulty';
+        let diffColor = 'var(--text-muted)';
+        if (q.difficulty === 'easy') { diffLabel = '🟢 Easy'; diffColor = '#10b981'; }
+        if (q.difficulty === 'medium') { diffLabel = '🟡 Medium'; diffColor = '#f59e0b'; }
+        if (q.difficulty === 'hard') { diffLabel = '🔴 Hard'; diffColor = '#ef4444'; }
+
+        const tags = getTags(q.tags);
+      %>
+      <div class="qb-card" data-type="<%= q.type %>" data-diff="<%= q.difficulty || '' %>" data-search="<%= (q.prompt + ' ' + (q.topic || '') + ' ' + tags.join(' ')).toLowerCase() %>" style="display: flex; gap: 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: 0.2s;">
+        
+        <!-- Checkbox for future bulk actions (QB-4) -->
+        <div style="padding-top: 4px;">
+          <input type="checkbox" class="qb-checkbox" value="<%= q.id %>" style="width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer;">
+        </div>
+
+        <div style="flex: 1;">
+          <!-- Tags & Badges -->
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center;">
+            <span style="background: <%= typeColor %>15; color: <%= typeColor %>; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase;"><%= typeLabel %></span>
+            <span style="color: <%= diffColor %>; font-size: 11px; font-weight: 700;"><%= diffLabel %></span>
+            <span style="color: var(--text-muted); font-size: 11px; font-weight: 600;">• <%= q.marks %> marks</span>
+            <span style="color: var(--text-muted); font-size: 11px; font-weight: 600;">• Used in <%= q.usage_count %> quiz(zes)</span>
+            
+            <% tags.forEach(t => { %>
+              <span style="background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">#<%= t %></span>
+            <% }); %>
+          </div>
+
+          <!-- Prompt -->
+          <h4 style="font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 10px; line-height: 1.4;"><%= q.prompt %></h4>
+
+          <!-- Choices Preview (MCQ/TF only) -->
+          <% if ((q.type === 'MCQ' || q.type === 'TF') && Array.isArray(q.choices)) { %>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted);">
+              <% q.choices.forEach(c => { %>
+                <div style="<%= c.is_correct ? 'color: #10b981; font-weight: 600;' : '' %>">
+                  <%= c.is_correct ? '✓' : '○' %> <%= c.text %>
+                </div>
+              <% }); %>
+            </div>
+          <% } else if (q.type === 'FILL_BLANK' && q.correct_answer) { %>
+            <div style="font-size: 13px; color: #10b981; font-weight: 600;">✓ Answer: <%= q.correct_answer.value %></div>
+          <% } %>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 8px; align-items: flex-start;">
+          <button type="button" onclick="editBankQuestion(<%= JSON.stringify(q).replace(/"/g, '&quot;') %>)" style="background: var(--bg-body); border: 1px solid var(--border); color: var(--primary); padding: 8px 12px; border-radius: 8px; cursor: pointer;">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <form action="/course/<%= course.id %>/question-bank/<%= q.id %>/delete" method="POST" style="margin: 0;" onsubmit="return confirm('Delete this question from the bank? Quizzes that already use it will NOT be affected.');">
+            <button type="submit" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #ef4444; padding: 8px 12px; border-radius: 8px; cursor: pointer;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </form>
+        </div>
+
+      </div>
+    <% }); %>
+  <% } %>
+</div>
+
+<!-- Include the Add/Edit Form Partial -->
+<%- include('question-bank-add') %>
+
+<script>
+  // Client-side search and filter
+  function filterBank() {
+    const search = document.getElementById('qbSearch').value.toLowerCase();
+    const type = document.getElementById('qbTypeFilter').value;
+    const diff = document.getElementById('qbDiffFilter').value;
+    
+    document.querySelectorAll('.qb-card').forEach(card => {
+      const text = card.getAttribute('data-search');
+      const cType = card.getAttribute('data-type');
+      const cDiff = card.getAttribute('data-diff');
+      
+      const matchSearch = text.includes(search);
+      const matchType = (type === 'all' || cType === type);
+      const matchDiff = (diff === 'all' || cDiff === diff);
+      
+      if (matchSearch && matchType && matchDiff) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+</script>

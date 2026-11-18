@@ -649,7 +649,35 @@
         <!-- ============================================== -->
         <!-- OTHER VIEWS PLACEHOLDER -->
         <!-- ============================================== -->
-        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'announcements') { %>
+                <!-- ============================================== -->
+        <!-- QUESTION BANK VIEW -->
+        <!-- ============================================== -->
+        <% if (view === 'question-bank') { %>
+          <% if (isTeacher) { %>
+            <%- include('partials/question-bank') %>
+          <% } else { %>
+            <div class="section-header"><h1 class="section-title">Access Denied</h1></div>
+            <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
+              <i class="fa-solid fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 16px;"></i>
+              <h3 style="color: var(--text-main); margin-bottom: 8px;">Teacher Access Only</h3>
+              <p style="color: var(--text-muted); font-size:13px;">You do not have permission to view the Question Bank.</p>
+            </div>
+          <% } %>
+        <% } %>
+
+        <!-- ============================================== -->
+        <!-- OTHER VIEWS PLACEHOLDER -->
+        <!-- ============================================== -->
+        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'announcements' && view !== 'question-bank') { %>
+          <div class="section-header">
+            <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
+          </div>
+          <div style="padding: 60px 20px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--bg-surface);">
+            <i class="fa-solid fa-person-digging" style="font-size: 40px; color: var(--text-muted); margin-bottom: 16px;"></i>
+            <h3 style="color: var(--text-main); margin-bottom: 8px;">Under Construction</h3>
+            <p style="color: var(--text-muted); font-size:13px;">The <%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %> module is coming in the next update.</p>
+          </div>
+        <% } %>
           <div class="section-header">
             <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
