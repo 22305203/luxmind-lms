@@ -560,7 +560,7 @@
               <!-- ============================================== -->
         <!-- EXPORT GRADES PREVIEW VIEW -->
         <!-- ============================================== -->
-        <% if (view === 'export-grades') { %>
+               <% if (view === 'export-grades') { %>
           <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h1 class="section-title">Export Grades Preview</h1>
             <a href="/course/<%= course.id %>/export-grades/download" class="btn" style="background: #10b981; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px;">
@@ -570,27 +570,32 @@
 
           <div class="item-card" style="display: block; padding: 24px; background: var(--bg-surface); border-radius: 16px; border: 1px solid var(--border); overflow-x: auto;">
             <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 13px;">
-              This is a preview of the data that will be downloaded. The downloaded CSV will include all assignments, projects, and quizzes.
+              This is a preview of the data that will be downloaded. <strong>Note:</strong> Only published assignments and quizzes are shown here.
             </p>
             
             <% if (exportStudents.length === 0) { %>
               <p style="text-align: center; color: var(--text-muted); padding: 40px;">No students enrolled.</p>
+            <% } else if (exportAssessments.length === 0) { %>
+              <p style="text-align: center; color: var(--text-muted); padding: 40px;">No published assignments or quizzes found for this course.</p>
             <% } else { %>
-              <table class="grade-table">
+              <table class="grade-table" style="min-width: 100%;">
                 <thead>
                   <tr>
-                    <th>Admission #</th>
-                    <th>Student Name</th>
+                    <th style="position: sticky; left: 0; background: var(--bg-surface); z-index: 2;">Admission #</th>
+                    <th style="position: sticky; left: 80px; background: var(--bg-surface); z-index: 2;">Student Name</th>
                     <% exportAssessments.forEach(a => { %>
-                      <th><%= a.type %>: <%= a.title %> (<%= a.max_points %>)</th>
+                      <th style="white-space: nowrap; text-align: center;">
+                        <%= a.title %><br>
+                        <span style="font-size: 10px; color: var(--text-muted);">(Max: <%= a.max_points %>)</span>
+                      </th>
                     <% }); %>
                   </tr>
                 </thead>
                 <tbody>
                   <% exportStudents.forEach(st => { %>
                     <tr>
-                      <td style="font-weight: 600; color: var(--primary);"><%= st.admission_number %></td>
-                      <td style="font-weight: 600; color: var(--text-main);"><%= st.full_name %></td>
+                      <td style="font-weight: 600; color: var(--primary); position: sticky; left: 0; background: var(--bg-surface); z-index: 1;"><%= st.admission_number %></td>
+                      <td style="font-weight: 600; color: var(--text-main); position: sticky; left: 80px; background: var(--bg-surface); z-index: 1;"><%= st.full_name %></td>
                       <% exportAssessments.forEach(a => { %>
                         <% 
                           let score = '-';
@@ -598,7 +603,7 @@
                             score = exportGradesMap[st.id][`${a.type}_${a.id}`];
                           }
                         %>
-                        <td><%= score %></td>
+                        <td style="text-align: center; font-weight: 600; color: <%= score !== '-' ? '#10b981' : 'var(--text-muted)' %>;"><%= score %></td>
                       <% }); %>
                     </tr>
                   <% }); %>

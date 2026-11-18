@@ -751,7 +751,7 @@ app.get('/course/:id', async (req, res) => {
       bankQuestions = bqRes.rows;
     }
 
-    if (view === 'export-grades') {
+        if (view === 'export-grades') {
       if (!isTeacher) return res.status(403).send("Access Denied.");
       
       const studentsRes = await pool.query(`
@@ -764,13 +764,16 @@ app.get('/course/:id', async (req, res) => {
       `, [courseId]);
       exportStudents = studentsRes.rows;
 
+      // UPDATED QUERY: Added due_date and ORDER BY due_date
       const assessmentsRes = await pool.query(`
-        SELECT id, 'Assignment' as type, title, max_points FROM lms_assignments WHERE course_id = $1 AND is_published = TRUE
+        SELECT id, 'Assignment' as type, title, max_points, due_date FROM lms_assignments WHERE course_id = $1 AND is_published = TRUE
         UNION ALL
-        SELECT id, 'Quiz' as type, title, total_marks as max_points FROM lms_quizzes WHERE course_id = $1 AND is_published = TRUE
-        ORDER BY type, id ASC
+        SELECT id, 'Quiz' as type, title, total_marks as max_points, close_at as due_date FROM lms_quizzes WHERE course_id = $1 AND is_published = TRUE
+        ORDER BY due_date ASC NULLS LAST
       `, [courseId]);
       exportAssessments = assessmentsRes.rows;
+
+      
 
       const gradesRes = await pool.query(`
         SELECT s.student_id, 'Assignment' as type, a.id as item_id, s.grade as score
@@ -874,10 +877,9 @@ app.get('/course/:id/export-grades/download', async (req, res) => {
 
     // 4. Build CSV Header
     let csv = 'Admission Number,Student Name';
-    assessments.forEach(a => {
-      // Sanitize title to prevent CSV injection and format nicely
+      assessments.forEach(a => {
       const safeTitle = a.title.replace(/"/g, '""');
-      csv += `,"${a.type}: ${safeTitle} (${a.max_points} pts)"`;
+      csv += `,"${safeTitle} (${a.max_points})"`;
     });
     csv += '\n';
 
