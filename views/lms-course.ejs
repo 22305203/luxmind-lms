@@ -726,7 +726,7 @@
         <!-- ============================================== -->
         <!-- OTHER VIEWS PLACEHOLDER -->
         <!-- ============================================== -->
-       <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'export-grades') { %>
+      <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'export-grades' && view !== 'question-bank') { %>
           <div class="section-header">
             <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
