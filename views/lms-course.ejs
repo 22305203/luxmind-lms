@@ -556,6 +556,27 @@
           <% } %>
         <% } %>
 
+
+        <!-- ============================================== -->
+        <!-- EXPORT GRADES VIEW -->
+        <!-- ============================================== -->
+        <% if (view === 'export-grades') { %>
+          <div class="section-header">
+            <h1 class="section-title">Export Grades</h1>
+          </div>
+          <div class="item-card" style="display: block; padding: 40px; text-align: center; background: var(--bg-surface); border-radius: 16px; border: 1px solid var(--border);">
+            <i class="fa-solid fa-file-excel" style="font-size: 64px; color: #10b981; margin-bottom: 24px;"></i>
+            <h2 style="font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px;">Download Gradebook</h2>
+            <p style="color: var(--text-muted); margin-bottom: 32px; max-width: 500px; margin-left: auto; margin-right: auto;">
+              Export all student grades, including assignments, projects, and quizzes, into a CSV file that can be opened in Microsoft Excel or Google Sheets.
+            </p>
+            <a href="/course/<%= course.id %>/export-grades" class="btn" style="background: #10b981; color: white; padding: 14px 32px; font-size: 16px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-download"></i> Download CSV File
+            </a>
+          </div>
+        <% } %>
+
+
         <!-- ============================================== -->
         <!-- GRADES VIEW (COMBINED ASSIGNMENTS & QUIZZES) -->
         <!-- ============================================== -->
@@ -669,7 +690,7 @@
         <!-- ============================================== -->
         <!-- OTHER VIEWS PLACEHOLDER -->
         <!-- ============================================== -->
-        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'announcements' && view !== 'question-bank') { %>
+        <% if (view !== 'materials' && view !== 'dashboard' && view !== 'assignments' && view !== 'quizzes' && view !== 'grades' && view !== 'export-grades') { %>
           <div class="section-header">
             <h1 class="section-title"><%= view.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') %></h1>
           </div>
