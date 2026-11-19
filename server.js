@@ -2437,23 +2437,9 @@ app.get('/course/:id/gradebook/compute', async (req, res) => {
 });
 
 // ============================================
-// ATTENDANCE MODULE                        🔼 YOUR ORIGINAL LINE, UNCHANGED
-// ============================================
-// ============================================
 // ATTENDANCE MODULE
+// (QR attendance has NO location check — students can scan from anywhere)
 // ============================================
-
-// Helper: Calculate distance between two coordinates in meters (Haversine formula)
-function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Radius of earth in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in meters
-}
 
 // 1. GET Attendance View (Handles BOTH Teacher and Student)
 app.get('/course/:id/attendance', async (req, res) => {
@@ -2581,17 +2567,16 @@ app.post('/course/:id/attendance/start', async (req, res) => {
   }
 });
 
-// 4. POST Generate QR Token
+// 4. POST Generate QR Token (no teacher location stored anymore)
 app.post('/course/:id/attendance/qr/:session_id', async (req, res) => {
   if (!isTeacherRole(req.session.user)) return res.status(403).json({ error: "Access Denied" });
   const { session_id } = req.params;
-  const { lat, lng } = req.body;
 
   try {
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     await pool.query(`
-      UPDATE lms_attendance_sessions SET qr_token = $1, token_expires_at = NOW() + INTERVAL '100 seconds', teacher_lat = $2, teacher_lng = $3 WHERE id = $4
-    `, [token, lat, lng, session_id]);
+      UPDATE lms_attendance_sessions SET qr_token = $1, token_expires_at = NOW() + INTERVAL '100 seconds' WHERE id = $2
+    `, [token, session_id]);
     res.json({ success: true, token });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2653,10 +2638,10 @@ app.get('/course/:id/attendance/scan', async (req, res) => {
   }
 });
 
-// 7. POST Confirm Scan (From the Confirm Button)
+// 7. POST Confirm Scan (From the Confirm Button) — NO location check
 app.post('/course/:id/attendance/scan', async (req, res) => {
   if (!req.session.user) return res.json({ success: false, error: "Not logged in" });
-  const { token, lat, lng } = req.body;
+  const { token } = req.body;
   const courseId = req.params.id;
 
   try {
@@ -2669,14 +2654,11 @@ app.post('/course/:id/attendance/scan', async (req, res) => {
     if (sessRes.rows.length === 0) return res.json({ success: false, error: "QR Code expired or invalid." });
     const session = sessRes.rows[0];
 
-    const distance = getDistanceFromLatLonInMeters(lat, lng, session.teacher_lat, session.teacher_lng);
-    if (distance > 50) return res.json({ success: false, error: `Rejected: You are ${Math.round(distance)}m away. Must be within 50m.` });
-
     await pool.query(`
-      INSERT INTO lms_attendance_records (session_id, student_id, status, method, scanned_lat, scanned_lng)
-      VALUES ($1, $2, 'present', 'qr', $3, $4)
+      INSERT INTO lms_attendance_records (session_id, student_id, status, method)
+      VALUES ($1, $2, 'present', 'qr')
       ON CONFLICT (session_id, student_id) DO UPDATE SET status = 'present', method = 'qr'
-    `, [session.id, req.session.user.id, lat, lng]);
+    `, [session.id, req.session.user.id]);
 
     res.json({ success: true, message: `Attendance confirmed for ${session.course_title}` });
   } catch (err) {
