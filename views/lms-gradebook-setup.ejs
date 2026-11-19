@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gradebook Setup — <%= course.code %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    :root { --bg:#f4f6fa; --surface:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --primary:#4f46e5; --danger:#ef4444; --ok:#10b981; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding:32px; }
+    .shell { max-width:900px; margin:0 auto; }
+    h1 { font:800 26px 'Plus Jakarta Sans',sans-serif; margin-bottom:6px; }
+    h2 { font:700 18px 'Plus Jakarta Sans',sans-serif; margin-bottom:14px; }
+    .sub { color:var(--muted); margin-bottom:24px; font-size:14px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:20px; }
+    .banner { padding:14px 18px; border-radius:10px; margin-bottom:16px; font-weight:600; font-size:14px; }
+    .banner.error { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#b91c1c; }
+    .banner.success { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:#047857; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); }
+    th { background:var(--bg); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); }
+    tr:last-child td { border-bottom:none; }
+    label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:6px; margin-top:16px; }
+    input, textarea { width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:10px; font-family:inherit; font-size:14px; }
+    input:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,0.1); }
+    textarea { font-family:'Menlo','Consolas',monospace; font-size:13px; line-height:1.6; resize:vertical; }
+    .hint { color:var(--muted); font-size:13px; margin-bottom:12px; line-height:1.5; }
+    .btn { padding:12px 22px; border-radius:10px; font-weight:700; font-size:14px; border:none; cursor:pointer; margin-top:16px; display:inline-flex; align-items:center; gap:8px; }
+    .btn-primary { background:var(--primary); color:#fff; }
+    .btn-primary:hover { background:#4338ca; }
+    .btn-danger { background:transparent; color:var(--danger); border:1px solid var(--danger); }
+    .btn-danger:hover { background:var(--danger); color:#fff; }
+    .source-badge { display:inline-block; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:700; text-transform:uppercase; }
+    .source-course { background:rgba(79,70,229,0.15); color:var(--primary); }
+    .source-institutional { background:rgba(100,116,139,0.15); color:var(--muted); }
+    code { background:var(--bg); padding:2px 6px; border-radius:4px; font-size:12px; }
+    .back-link { display:inline-block; margin-bottom:20px; font-size:13px; font-weight:600; color:var(--primary); text-decoration:none; }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <a href="/course/<%= course.id %>?view=grades" class="back-link">
+    <i class="fa-solid fa-arrow-left"></i> Back to grades
+  </a>
+
+  <h1>Gradebook Setup</h1>
+  <p class="sub"><%= course.code %> — <%= course.title %></p>
+
+  <% if (flashError) { %><div class="banner error"><i class="fa-solid fa-circle-exclamation"></i> <%= flashError %></div><% } %>
+  <% if (flashSuccess) { %><div class="banner success"><i class="fa-solid fa-circle-check"></i> <%= flashSuccess %></div><% } %>
+
+  <div class="card">
+    <h2>Current Letter Scheme</h2>
+    <% if (scheme) { %>
+      <p style="margin-bottom:8px;">
+        <strong><%= scheme.name %></strong>
+        <span class="source-badge source-<%= source %>" style="margin-left:8px;"><%= source %></span>
+      </p>
+      <p class="hint">
+        <% if (source === 'course') { %>
+          This course uses a custom override. All students in this course get letter grades from the bands below.
+        <% } else { %>
+          Inherited from the institutional default. To use different bands for this course only, override below.
+        <% } %>
+      </p>
+    <% } else { %>
+      <div class="banner error">No scheme found — the seed did not run. Run the seed SQL from the migration.</div>
+    <% } %>
+  </div>
+
+  <% if (scheme && bands.length > 0) { %>
+    <div class="card">
+      <h2>Bands</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Letter</th>
+            <th>Min %</th>
+            <th>Max %</th>
+            <th>GPA Points</th>
+            <th>Passing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% bands.forEach(b => { %>
+            <tr>
+              <td><strong><%= b.letter %></strong></td>
+              <td><%= b.min_pct %></td>
+              <td><%= b.max_pct %></td>
+              <td><%= b.gpa_points %></td>
+              <td><%= b.is_passing ? '✓' : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <div class="card">
+    <h2>Override for this course</h2>
+    <p class="hint">
+      Edit the bands below and save to use a custom scheme just for <strong><%= course.code %></strong>.
+      Each line is <code>letter, min_pct, max_pct, gpa_points, is_passing</code>.
+      Bands must be non-overlapping and cover 0–100.
+    </p>
+
+    <form method="POST" action="/course/<%= course.id %>/gradebook/setup/scheme">
+      <label>Scheme name</label>
+      <input type="text" name="scheme_name" required
+             value="<%= scheme && source === 'course' ? scheme.name : 'Custom for ' + course.code %>"
+             maxlength="100">
+
+      <label>Bands</label>
+      <textarea name="bands_text" rows="14" required><%= bandsText %></textarea>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="fa-solid fa-floppy-disk"></i> Save Course Override
+      </button>
+    </form>
+  </div>
+
+  <% if (source === 'course') { %>
+    <div class="card">
+      <h2>Revert to Institutional Default</h2>
+      <p class="hint">
+        Deactivate this course's custom scheme and inherit the institutional default again.
+        Existing grades are not affected — only future letter-grade lookups change.
+      </p>
+      <form method="POST" action="/course/<%= course.id %>/gradebook/setup/scheme/reset"
+            onsubmit="return confirm('Revert to institutional default scheme for this course?');">
+        <button type="submit" class="btn btn-danger">
+          <i class="fa-solid fa-rotate-left"></i> Reset to Institutional Default
+        </button>
+      </form>
+    </div>
+  <% } %>
+
+</div>
+</body>
+</html>

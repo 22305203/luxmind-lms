@@ -691,7 +691,7 @@ async function computeStudentGrade(courseId, studentId, classStats = null) {
   let raw_percentage = null;
   const categoryBreakdown = [];
 
-  if (settings.weighting_mode === 'simple') {
+ if (settings.weighting_mode === 'simple' || categories.length === 0) {
     const eligible = items.filter(i => i.eligible);
     const totalScore = eligible.reduce((s, i) => s + (Number(i.score) || 0), 0);
     const totalMax = eligible.reduce((s, i) => s + Number(i.max), 0);
