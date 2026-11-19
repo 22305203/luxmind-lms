@@ -184,18 +184,59 @@
     }
 
     // Auto-Polling (Updates X buttons when student scans)
-    setInterval(() => {
-      fetch(`/course/${courseId}/attendance/status?date=${selectedDate}`)
-        .then(r => r.json())
-        .then(data => {
-          if (data.records) {
-            data.records.forEach(r => {
-              const radio = document.querySelector(`input[name="att_${r.session_id}_${r.student_id}"][value="${r.status}"]`);
-              if (radio && !radio.checked) radio.checked = true;
-            });
-          }
-        });
-    }, 3000); 
+  
+// Auto-Polling: Update attendance when students scan their QR codes
+async function refreshAttendance() {
+  try {
+    const response = await fetch(
+      `/course/${courseId}/attendance/status?date=${encodeURIComponent(selectedDate)}`,
+      {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        '[ATTENDANCE POLLING] Server returned:',
+        response.status
+      );
+      return;
+    }
+
+    const data = await response.json();
+
+    // The status endpoint must return an array called records.
+    if (!Array.isArray(data.records)) {
+      console.error('[ATTENDANCE POLLING] Invalid response:', data);
+      return;
+    }
+
+    data.records.forEach(record => {
+      const selector =
+        `input[name="att_${record.session_id}_${record.student_id}"]` +
+        `[value="${record.status}"]`;
+
+      const radio = document.querySelector(selector);
+
+      if (radio && !radio.checked) {
+        radio.checked = true;
+      }
+    });
+
+  } catch (err) {
+    console.error('[ATTENDANCE POLLING ERROR]', err);
+  }
+}
+
+// Refresh immediately when the teacher opens the page,
+// then check for new attendance every 3 seconds.
+refreshAttendance();
+setInterval(refreshAttendance, 3000);
+
 
     // QR Modal
     function openQRModal(sessionId) {

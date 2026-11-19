@@ -2617,16 +2617,39 @@ app.post('/course/:id/attendance/manual', async (req, res) => {
 
 // 6. GET Student Scan Page
 app.get('/course/:id/attendance/scan', async (req, res) => {
-  if (!req.session.user) return res.redirect(`/login?redirect=/course/${req.params.id}/attendance/scan?token=${req.query.token}`);
+  if (!req.session.user) {
+    return res.redirect(
+      `/login?redirect=${encodeURIComponent(req.originalUrl)}`
+    );
+  }
+
   const courseId = req.params.id;
-  const { token } = req.query;
-  if (!token) return res.status(400).send("Invalid token.");
+  const token = req.query.token;
+
+  if (!token) {
+    return res.status(400).send("Invalid QR token.");
+  }
 
   try {
-    const courseRes = await pool.query(`SELECT title, code FROM courses WHERE id = $1`, [courseId]);
-    res.render('lms-attendance-scan', { user: req.session.user, course: courseRes.rows[0], token });
+    // IMPORTANT: Include id in this SELECT.
+    const courseRes = await pool.query(
+      `SELECT id, title, code FROM courses WHERE id = $1`,
+      [courseId]
+    );
+
+    if (courseRes.rows.length === 0) {
+      return res.status(404).send("Course not found.");
+    }
+
+    res.render('lms-attendance-scan', {
+      user: req.session.user,
+      course: courseRes.rows[0],
+      token
+    });
+
   } catch (err) {
-    res.status(500).send("Error: " + err.message);
+    console.error('[ATTENDANCE SCAN PAGE ERROR]', err);
+    res.status(500).send("Attendance page error: " + err.message);
   }
 });
 
@@ -2662,16 +2685,75 @@ app.post('/course/:id/attendance/scan', async (req, res) => {
 });
 
 // 8. GET Status (Polling for Teacher)
+
 app.get('/course/:id/attendance/status', async (req, res) => {
-  if (!isTeacherRole(req.session.user)) return res.status(403).json({ error: "Access Denied" });
-  const { date } = req.query;
+  if (!req.session.user) {
+    return res.status(401).json({
+      success: false,
+      error: 'Not logged in',
+      records: []
+    });
+  }
+
+  if (!isTeacherRole(req.session.user)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      records: []
+    });
+  }
+
+  const courseId = req.params.id;
+  const date = req.query.date;
+
   try {
-    const sessions = await pool.query(`SELECT id FROM lms_attendance_sessions WHERE course_id = $1 AND date = $2`, [req.params.id, date]);
-    if (sessions.rows.length === 0) return res.json({ records: [] });
+    const ownsCourse = await teacherOwnsCourse(
+      req.session.user.id,
+      courseId
+    );
+
+    if (!ownsCourse) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not own this course.',
+        records: []
+      });
+    }
+
+    const sessions = await pool.query(
+      `SELECT id
+       FROM lms_attendance_sessions
+       WHERE course_id = $1 AND date = $2`,
+      [courseId, date]
+    );
+
+    if (sessions.rows.length === 0) {
+      return res.json({ success: true, records: [] });
+    }
+
     const sessionIds = sessions.rows.map(s => s.id);
-    const records = await pool.query(`SELECT session_id, student_id, status FROM lms_attendance_records WHERE session_id = ANY($1)`, [sessionIds]);
-    res.json({ records: records.rows });
-  } catch (err) { res.json({ records: [] }); }
+
+    const records = await pool.query(
+      `SELECT session_id, student_id, status
+       FROM lms_attendance_records
+       WHERE session_id = ANY($1)`,
+      [sessionIds]
+    );
+
+    return res.json({
+      success: true,
+      records: records.rows
+    });
+
+  } catch (err) {
+    console.error('[ATTENDANCE STATUS ERROR]', err);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Could not retrieve attendance records.',
+      records: []
+    });
+  }
 });
 
 // ============================================
