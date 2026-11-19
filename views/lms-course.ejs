@@ -183,6 +183,11 @@
         <li><a href="/course/<%= course.id %>?view=assignments" class="<%= view === 'assignments' ? 'active' : '' %>"><i class="fa-solid fa-file-pen"></i> Assignments</a></li>
         <li><a href="/course/<%= course.id %>?view=quizzes" class="<%= view === 'quizzes' ? 'active' : '' %>"><i class="fa-solid fa-stopwatch"></i> Quizzes &amp; Exams</a></li>
         <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> <%= isTeacher ? 'Gradebook' : 'My Grades' %></a></li>
+             <li><a href="/course/<%= course.id %>?view=grades" class="<%= view === 'grades' ? 'active' : '' %>"><i class="fa-solid fa-chart-simple"></i> <%= isTeacher ? 'Gradebook' : 'My Grades' %></a></li>
+        <% if (isTeacher) { %>
+          <li><a href="/course/<%= course.id %>/gradebook/setup" style="padding-left: 34px; font-size: 12px; opacity: 0.85;"><i class="fa-solid fa-award"></i> Letter Scheme</a></li>
+          <li><a href="/course/<%= course.id %>/gradebook/setup/rules" style="padding-left: 34px; font-size: 12px; opacity: 0.85;"><i class="fa-solid fa-sliders"></i> Grade Rules</a></li>
+        <% } %>
         <% if (isTeacher) { %>
           <li><a href="/course/<%= course.id %>?view=question-bank" class="<%= view === 'question-bank' ? 'active' : '' %>"><i class="fa-solid fa-database"></i> Question Bank</a></li>
           <li><a href="/course/<%= course.id %>?view=export-grades" class="<%= view === 'export-grades' ? 'active' : '' %>"><i class="fa-solid fa-file-export"></i> Export Grades</a></li>
