@@ -493,6 +493,342 @@ function parseCategoriesFromBody(body) {
   return cats;
 }
 
+
+
+// ============================================
+// GRADEBOOK — G-2-restore + G-4 helpers
+// ============================================
+
+// ---------- G-2: Letter scheme resolution ----------
+async function resolveSchemeForCourse(courseId) {
+  const cs = await pool.query(
+    `SELECT * FROM lms_letter_schemes
+     WHERE scope = 'course' AND course_id = $1 AND is_active = TRUE
+     ORDER BY created_at DESC LIMIT 1`, [courseId]);
+  if (cs.rows.length > 0) return { source: 'course', scheme: cs.rows[0] };
+  const inst = await pool.query(
+    `SELECT * FROM lms_letter_schemes
+     WHERE scope = 'institutional' AND is_active = TRUE
+     ORDER BY created_at ASC LIMIT 1`);
+  if (inst.rows.length > 0) return { source: 'institutional', scheme: inst.rows[0] };
+  return { source: 'none', scheme: null };
+}
+
+async function getSchemeBands(schemeId) {
+  const r = await pool.query(
+    `SELECT id, letter, min_pct, max_pct, gpa_points, is_passing, sort_order
+     FROM lms_letter_scheme_bands WHERE scheme_id = $1 ORDER BY sort_order`,
+    [schemeId]);
+  return r.rows;
+}
+
+function parseBandsText(text) {
+  const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const bands = [];
+  for (const line of lines) {
+    const parts = line.split(',').map(p => p.trim());
+    if (parts.length < 4) throw new Error('Each band needs: letter, min, max, gpa [, passing]');
+    const [letter, minS, maxS, gpaS, passingS] = parts;
+    const min = Number(minS), max = Number(maxS), gpa = Number(gpaS);
+    const passing = passingS === undefined ? true
+      : (passingS.toLowerCase() === 'true' || passingS === '1');
+    if (!letter || letter.length > 4) throw new Error('Invalid letter: ' + letter);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max > 100 || min > max)
+      throw new Error(`Bad boundaries for ${letter}: ${minS}-${maxS}`);
+    if (!Number.isFinite(gpa) || gpa < 0 || gpa > 5)
+      throw new Error(`Bad GPA for ${letter}: ${gpaS}`);
+    bands.push({ letter, min, max, gpa, passing });
+  }
+  if (bands.length === 0) throw new Error('At least one band required');
+  const sorted = [...bands].sort((a, b) => a.min - b.min);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].min <= sorted[i - 1].max) {
+      throw new Error(`Bands overlap: ${sorted[i-1].letter} and ${sorted[i].letter}`);
+    }
+  }
+  sorted.forEach((b, i) => b.sort_order = i + 1);
+  return sorted;
+}
+
+// ---------- G-4: Calculation engine ----------
+function applyRounding(pct, rule) {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return null;
+  switch (rule) {
+    case 'none': return pct;
+    case 'integer': return Math.round(pct);
+    case '1_decimal': return Math.round(pct * 10) / 10;
+    case 'half_up': return Math.floor(pct + 0.5);
+    case 'half_even': {
+      const floor = Math.floor(pct);
+      const diff = pct - floor;
+      if (Math.abs(diff - 0.5) < 1e-9) return floor % 2 === 0 ? floor : floor + 1;
+      return Math.round(pct);
+    }
+    default: return pct;
+  }
+}
+
+function lookupLetterBand(pct, bands) {
+  if (pct === null || pct === undefined || !bands || bands.length === 0) return null;
+  // Round to 2 decimals so 89.995 → 90.00 correctly hits A- band
+  const lookup = Math.round(pct * 100) / 100;
+  for (const b of bands) {
+    if (lookup >= Number(b.min_pct) && lookup <= Number(b.max_pct)) return b;
+  }
+  return null;
+}
+
+// Determine per-item state + effective score for one student
+async function getEffectiveItemScore(courseId, studentId, assessment, overrideMap, now) {
+  const key = `${assessment.item_type}:${assessment.id}`;
+  const override = overrideMap[key];
+  const dueDate = assessment.due_date ? new Date(assessment.due_date) : null;
+  const isPastDue = dueDate ? dueDate < now : false;
+  const maxScore = Number(assessment.max_points) || 0;
+
+  let score = null;
+  let state = 'unknown';
+  let effectiveMax = maxScore;
+
+  if (assessment.item_type === 'assignment') {
+    const s = await pool.query(
+      `SELECT s.id AS submission_id, s.grade
+       FROM lms_submissions s WHERE s.assignment_id = $1 AND s.student_id = $2 LIMIT 1`,
+      [assessment.id, studentId]);
+    if (s.rows.length > 0) {
+      const row = s.rows[0];
+      if (row.grade !== null && row.grade !== undefined) {
+        score = Number(row.grade);
+        state = 'graded';
+      } else {
+        state = 'pending';
+      }
+    } else if (isPastDue) {
+      score = 0;
+      state = 'missing';
+    } else {
+      state = 'not_yet_due';
+    }
+  } else if (assessment.item_type === 'quiz') {
+    const q = await pool.query(
+      `SELECT total_score, status FROM lms_quiz_attempts
+       WHERE quiz_id = $1 AND student_id = $2
+         AND status IN ('submitted','graded','released')
+       ORDER BY total_score DESC NULLS LAST, submitted_at DESC LIMIT 1`,
+      [assessment.id, studentId]);
+    if (q.rows.length > 0) {
+      const row = q.rows[0];
+      if (row.status === 'submitted') {
+        state = 'pending';
+      } else if (row.total_score !== null && row.total_score !== undefined) {
+        score = Number(row.total_score);
+        state = 'graded';
+      } else {
+        state = 'pending';
+      }
+    } else if (isPastDue) {
+      score = 0;
+      state = 'missing';
+    } else {
+      state = 'not_yet_due';
+    }
+  }
+
+  // Apply override (highest priority)
+  if (override) {
+    if (override.override_score !== null && override.override_score !== undefined) {
+      score = Number(override.override_score);
+      state = 'overridden';
+    }
+    if (override.override_max !== null && override.override_max !== undefined) {
+      effectiveMax = Number(override.override_max);
+    }
+  }
+
+  const eligible = ['graded', 'overridden', 'missing'].includes(state);
+  const pct = (eligible && effectiveMax > 0) ? (score / effectiveMax) * 100 : null;
+
+  return {
+    item_type: assessment.item_type,
+    item_id: assessment.id,
+    title: assessment.title,
+    due_date: assessment.due_date,
+    max: effectiveMax,
+    score,
+    percentage: pct,
+    state,
+    eligible,
+    overridden: state === 'overridden'
+  };
+}
+
+async function computeStudentGrade(courseId, studentId, classStats = null) {
+  const [settings, schemeData, categories, assessments] = await Promise.all([
+    ensureGradeSettings(courseId),
+    resolveSchemeForCourse(courseId),
+    getCategoriesForCourse(courseId),
+    listCourseAssessments(courseId)
+  ]);
+  const bands = schemeData.scheme ? await getSchemeBands(schemeData.scheme.id) : [];
+
+  const overrideRes = await pool.query(
+    `SELECT item_type, item_id, override_score, override_max
+     FROM lms_grade_overrides WHERE course_id = $1 AND student_id = $2`,
+    [courseId, studentId]);
+  const overrideMap = {};
+  let overallOverride = null;
+  for (const o of overrideRes.rows) {
+    if (o.item_type === 'overall') overallOverride = o;
+    else overrideMap[`${o.item_type}:${o.item_id}`] = o;
+  }
+
+  const now = new Date();
+  const items = [];
+  for (const a of assessments) {
+    items.push(await getEffectiveItemScore(courseId, studentId, a, overrideMap, now));
+  }
+
+  let raw_percentage = null;
+  const categoryBreakdown = [];
+
+  if (settings.weighting_mode === 'simple') {
+    const eligible = items.filter(i => i.eligible);
+    const totalScore = eligible.reduce((s, i) => s + (Number(i.score) || 0), 0);
+    const totalMax = eligible.reduce((s, i) => s + Number(i.max), 0);
+    raw_percentage = totalMax > 0 ? (totalScore / totalMax) * 100 : null;
+  } else if (categories.length > 0) {
+    for (const cat of categories) {
+      const catItems = cat.items
+        .map(it => items.find(i => i.item_type === it.item_type && i.item_id === it.item_id))
+        .filter(Boolean);
+      const eligible = catItems.filter(i => i.eligible);
+
+      let used = eligible.slice();
+      const dropN = Number(cat.drop_lowest_n) || 0;
+      if (dropN > 0 && used.length > 1) {
+        const effectiveDrop = Math.min(dropN, used.length - 1);
+        used.sort((a, b) => (a.percentage || 0) - (b.percentage || 0));
+        used = used.slice(effectiveDrop);
+      }
+
+      const catScore = used.reduce((s, i) => s + (Number(i.score) || 0), 0);
+      const catMax = used.reduce((s, i) => s + Number(i.max), 0);
+      const catPct = catMax > 0 ? (catScore / catMax) * 100 : null;
+
+      categoryBreakdown.push({
+        name: cat.name,
+        weight_pct: Number(cat.weight_pct),
+        items_total: catItems.length,
+        items_eligible: eligible.length,
+        items_used: used.length,
+        items_dropped: eligible.length - used.length,
+        score: catScore,
+        max: catMax,
+        percentage: catPct,
+        effective_weight: null
+      });
+    }
+
+    const catsWithItems = categoryBreakdown.filter(c => c.percentage !== null);
+    const totalWeight = catsWithItems.reduce((s, c) => s + c.weight_pct, 0);
+    if (totalWeight > 0) {
+      let weightedSum = 0;
+      for (const c of catsWithItems) {
+        const effectiveWeight = (c.weight_pct / totalWeight) * 100;
+        c.effective_weight = effectiveWeight;
+        weightedSum += (c.percentage * effectiveWeight) / 100;
+      }
+      raw_percentage = weightedSum;
+    }
+  }
+
+  // Apply curve
+  let curved_percentage = raw_percentage;
+  if (raw_percentage !== null && settings.curve_mode !== 'none') {
+    if (settings.curve_mode === 'linear_max100' && classStats && classStats.highest > 0) {
+      curved_percentage = Math.min(100, raw_percentage * (100 / classStats.highest));
+    } else if (settings.curve_mode === 'linear_mean' && classStats) {
+      curved_percentage = Math.max(0, Math.min(100, raw_percentage + (75 - classStats.mean)));
+    } else if (settings.curve_mode === 'sqrt') {
+      curved_percentage = Math.sqrt(raw_percentage / 100) * 100;
+    } else if (settings.curve_mode === 'bell' && classStats && classStats.stdev > 0) {
+      const z = (raw_percentage - classStats.mean) / classStats.stdev;
+      curved_percentage = Math.max(0, Math.min(100, z * 12 + 75));
+    }
+  }
+
+  const final_percentage = curved_percentage !== null
+    ? applyRounding(curved_percentage, settings.rounding_rule)
+    : null;
+
+  const band = lookupLetterBand(final_percentage, bands);
+
+  return {
+    student_id: studentId,
+    items,
+    categories: categoryBreakdown,
+    weighting_mode: settings.weighting_mode,
+    curve_mode: settings.curve_mode,
+    rounding_rule: settings.rounding_rule,
+    raw_percentage,
+    curved_percentage,
+    final_percentage,
+    letter: band ? band.letter : null,
+    gpa_points: band ? Number(band.gpa_points) : null,
+    is_passing: band ? band.is_passing : null,
+    scheme_source: schemeData.source,
+    counts: {
+      graded: items.filter(i => ['graded', 'overridden'].includes(i.state)).length,
+      missing: items.filter(i => i.state === 'missing').length,
+      pending: items.filter(i => i.state === 'pending').length,
+      not_yet_due: items.filter(i => i.state === 'not_yet_due').length,
+      total: items.length
+    },
+    overall_override: overallOverride || null
+  };
+}
+
+async function computeCourseGrades(courseId) {
+  const studentsRes = await pool.query(
+    `SELECT u.id, u.full_name, COALESCE(sp.admission_number, u.id::text) AS admission_number
+     FROM enrollments e
+     JOIN users u ON u.id = e.user_id
+     LEFT JOIN student_profiles sp ON sp.user_id = u.id
+     WHERE e.course_id = $1
+     ORDER BY admission_number ASC`,
+    [courseId]);
+
+  const results = [];
+  // First pass — raw percentages with curve = none applied
+  for (const st of studentsRes.rows) {
+    const g = await computeStudentGrade(courseId, st.id, null);
+    results.push({ student: st, grade: g });
+  }
+
+  // Class stats
+  const rawPcts = results.map(r => r.grade.raw_percentage).filter(p => p !== null);
+  let classStats = null;
+  if (rawPcts.length > 0) {
+    const sum = rawPcts.reduce((s, p) => s + p, 0);
+    const mean = sum / rawPcts.length;
+    const highest = Math.max(...rawPcts);
+    const variance = rawPcts.reduce((s, p) => s + (p - mean) ** 2, 0) / rawPcts.length;
+    const stdev = Math.sqrt(variance);
+    classStats = { mean, highest, stdev, count: rawPcts.length };
+  }
+
+  // Second pass — re-apply curve with class stats (only if curve needs them)
+  const settings = await ensureGradeSettings(courseId);
+  const curveNeedsStats = ['linear_max100', 'linear_mean', 'bell'].includes(settings.curve_mode);
+  if (curveNeedsStats && classStats) {
+    for (const r of results) {
+      r.grade = await computeStudentGrade(courseId, r.student.id, classStats);
+    }
+  }
+
+  return { students: results, classStats, settings };
+}
+
 // ============================================
 // --- ROUTES ---
 // ============================================
@@ -1961,7 +2297,148 @@ app.post('/course/:id/gradebook/setup/rules/categories', async (req, res) => {
     res.redirect(`/course/${courseId}/gradebook/setup/rules?error=${encodeURIComponent(err.message)}`);
   }
 });
+// ============================================
+// GRADEBOOK — G-2 routes (letter scheme setup)
+// ============================================
 
+app.get('/course/:id/gradebook/setup', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const courseRes = await pool.query(
+      `SELECT id, code, title, credits FROM courses WHERE id = $1`, [courseId]);
+    if (courseRes.rows.length === 0) return res.status(404).send("Course not found.");
+    const course = courseRes.rows[0];
+
+    const settings = await ensureGradeSettings(courseId);
+    const { source, scheme } = await resolveSchemeForCourse(courseId);
+    const bands = scheme ? await getSchemeBands(scheme.id) : [];
+    const bandsText = bands.map(b =>
+      `${b.letter}, ${b.min_pct}, ${b.max_pct}, ${b.gpa_points}, ${b.is_passing}`).join('\n');
+
+    res.render('lms-gradebook-setup', {
+      user: req.session.user,
+      course, settings, source, scheme, bands, bandsText,
+      flashError: req.query.error || null,
+      flashSuccess: req.query.success || null
+    });
+  } catch (err) {
+    console.error('[gradebook-setup]', err);
+    res.status(500).send("Gradebook Setup Error: " + err.message);
+  }
+});
+
+app.post('/course/:id/gradebook/setup/scheme', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    const s = await ensureGradeSettings(courseId);
+    if (s.publish_state !== 'draft') {
+      return res.redirect(`/course/${courseId}/gradebook/setup?error=${encodeURIComponent('Gradebook is ' + s.publish_state + ' — cannot change scheme')}`);
+    }
+    const bands = parseBandsText(req.body.bands_text);
+    const schemeName = (req.body.scheme_name || 'Course Custom').substring(0, 100);
+
+    const existing = await pool.query(
+      `SELECT id FROM lms_letter_schemes WHERE scope='course' AND course_id=$1 AND is_active=TRUE LIMIT 1`,
+      [courseId]);
+
+    let schemeId;
+    if (existing.rows.length > 0) {
+      schemeId = existing.rows[0].id;
+      await pool.query(`UPDATE lms_letter_schemes SET name=$1 WHERE id=$2`, [schemeName, schemeId]);
+      await pool.query(`DELETE FROM lms_letter_scheme_bands WHERE scheme_id=$1`, [schemeId]);
+    } else {
+      const ins = await pool.query(
+        `INSERT INTO lms_letter_schemes (name, scope, course_id, created_by)
+         VALUES ($1, 'course', $2, $3) RETURNING id`,
+        [schemeName, courseId, req.session.user.id]);
+      schemeId = ins.rows[0].id;
+    }
+
+    for (const b of bands) {
+      await pool.query(
+        `INSERT INTO lms_letter_scheme_bands
+           (scheme_id, letter, min_pct, max_pct, gpa_points, is_passing, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [schemeId, b.letter, b.min, b.max, b.gpa, b.passing, b.sort_order]);
+    }
+
+    await pool.query(
+      `UPDATE lms_grade_settings SET letter_scheme_id=$1 WHERE course_id=$2`,
+      [schemeId, courseId]);
+
+    await pool.query(
+      `INSERT INTO lms_grade_audit (course_id, item_type, action, changed_by, reason, new_value)
+       VALUES ($1, 'gradebook', 'update', $2, 'Letter scheme overridden', $3)`,
+      [courseId, req.session.user.id, JSON.stringify({ scheme_id: schemeId, bands: bands.length })]);
+
+    res.redirect(`/course/${courseId}/gradebook/setup?success=${encodeURIComponent('Course scheme saved')}`);
+  } catch (err) {
+    console.error('[gradebook-scheme-save]', err);
+    res.redirect(`/course/${courseId}/gradebook/setup?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+app.post('/course/:id/gradebook/setup/scheme/reset', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    await pool.query(
+      `UPDATE lms_letter_schemes SET is_active=FALSE WHERE scope='course' AND course_id=$1`,
+      [courseId]);
+    const inst = await pool.query(
+      `SELECT id FROM lms_letter_schemes WHERE scope='institutional' AND is_active=TRUE ORDER BY created_at ASC LIMIT 1`);
+    const instId = inst.rows[0]?.id || null;
+    await pool.query(
+      `UPDATE lms_grade_settings SET letter_scheme_id=$1 WHERE course_id=$2`,
+      [instId, courseId]);
+    await pool.query(
+      `INSERT INTO lms_grade_audit (course_id, item_type, action, changed_by, reason)
+       VALUES ($1, 'gradebook', 'update', $2, 'Reverted to institutional scheme')`,
+      [courseId, req.session.user.id]);
+    res.redirect(`/course/${courseId}/gradebook/setup?success=${encodeURIComponent('Reverted to institutional default')}`);
+  } catch (err) {
+    console.error('[gradebook-scheme-reset]', err);
+    res.redirect(`/course/${courseId}/gradebook/setup?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// ============================================
+// GRADEBOOK — G-4 debug route (compute)
+// ============================================
+
+app.get('/course/:id/gradebook/compute', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  if (!isTeacherRole(req.session.user)) return res.status(403).send("Access Denied.");
+  const courseId = req.params.id;
+  if (!(await teacherOwnsCourse(req.session.user.id, courseId))) return res.status(403).send("Access Denied.");
+
+  try {
+    if (req.query.student_id) {
+      const r = await computeStudentGrade(courseId, parseInt(req.query.student_id, 10), null);
+      return res.json(r);
+    }
+    const r = await computeCourseGrades(courseId);
+    return res.json(r);
+  } catch (err) {
+    console.error('[gradebook-compute]', err);
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+// ============================================
+// ATTENDANCE MODULE                        🔼 YOUR ORIGINAL LINE, UNCHANGED
+// ============================================
 // ============================================
 // ATTENDANCE MODULE
 // ============================================
